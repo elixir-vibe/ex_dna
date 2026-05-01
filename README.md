@@ -135,6 +135,15 @@ def validate(params) do
 end
 ```
 
+## max_clones / min_occurrences
+
+* `min_occurrences` → only report clone groups appearing in 3+ locations
+* `max_clones` → return non-zero exit if more than 10 reportable clone groups remain
+
+Note that `max_clones` applies after report filters like `min_occurrences` so
+clones that were not reported due to `min_occurrences` are not counted towards the `max_clones` budget.
+
+applies after report filters like min_occurrences
 ## Incremental detection
 
 Add ExDNA as a compiler for automatic detection on `mix compile`:
