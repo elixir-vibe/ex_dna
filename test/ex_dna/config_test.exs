@@ -7,6 +7,7 @@ defmodule ExDNA.ConfigTest do
     test "applies defaults" do
       config = Config.new([])
       assert config.min_mass == 30
+      assert config.min_occurrences == 2
       assert config.min_similarity == 1.0
       assert config.paths == ["lib/"]
       assert config.excluded_macros == []

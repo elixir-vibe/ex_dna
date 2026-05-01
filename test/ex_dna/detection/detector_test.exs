@@ -132,7 +132,7 @@ defmodule ExDNA.Detection.DetectorTest do
       assert clones == []
     end
 
-    test "respects allowed_repetitions", %{dir: dir} do
+    test "respects min_occurrences", %{dir: dir} do
       write_fixture(dir, "a.ex", """
       defmodule A do
         def process(data) do
@@ -181,7 +181,7 @@ defmodule ExDNA.Detection.DetectorTest do
       end
       """)
 
-      config = Config.new(paths: [dir], min_mass: 5, reporters: [], allowed_repetitions: 2)
+      config = Config.new(paths: [dir], min_mass: 5, reporters: [], min_occurrences: 3)
       {clones, _} = Detector.run(config)
 
       fragments = Enum.map(clones, &length(&1.fragments))

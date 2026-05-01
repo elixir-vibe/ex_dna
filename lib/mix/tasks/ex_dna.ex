@@ -38,6 +38,7 @@ defmodule Mix.Tasks.ExDna do
       OptionParser.parse(argv,
         strict: [
           min_mass: :integer,
+          min_occurrences: :integer,
           min_similarity: :float,
           literal_mode: :string,
           normalize_pipes: :boolean,
@@ -47,7 +48,7 @@ defmodule Mix.Tasks.ExDna do
           format: :string,
           max_clones: :integer
         ],
-        aliases: [m: :min_mass, s: :min_similarity, i: :ignore, f: :format]
+        aliases: [m: :min_mass, o: :min_occurrences, s: :min_similarity, i: :ignore, f: :format]
       )
 
     config_opts = build_config(opts, paths)
@@ -120,6 +121,7 @@ defmodule Mix.Tasks.ExDna do
     ]
     |> Options.maybe_put(:ignore, ignored_paths)
     |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
+    |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
     |> Options.maybe_put(:min_similarity, Keyword.get(opts, :min_similarity))
     |> Options.maybe_put(:excluded_macros, excluded_macros)
     |> Options.maybe_put(:ignored_attributes, ignored_attributes)

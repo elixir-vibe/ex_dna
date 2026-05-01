@@ -22,12 +22,13 @@ defmodule Mix.Tasks.ExDna.Explain do
       OptionParser.parse(argv,
         strict: [
           min_mass: :integer,
+          min_occurrences: :integer,
           min_similarity: :float,
           literal_mode: :string,
           normalize_pipes: :boolean,
           ignore: :keep
         ],
-        aliases: [m: :min_mass, s: :min_similarity, i: :ignore]
+        aliases: [m: :min_mass, o: :min_occurrences, s: :min_similarity, i: :ignore]
       )
 
     clone_index =
@@ -50,6 +51,7 @@ defmodule Mix.Tasks.ExDna.Explain do
       ]
       |> Options.maybe_put(:ignore, Options.optional_values(opts, :ignore))
       |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
+      |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
       |> Options.maybe_put(:min_similarity, Keyword.get(opts, :min_similarity))
 
     report = ExDNA.analyze(config_opts)

@@ -95,6 +95,7 @@ Create `.ex_dna.exs` in your project root:
 ```elixir
 %{
   min_mass: 25,
+  min_occurrences: 3,
   ignore: ["lib/my_app_web/templates/**"],
   excluded_macros: [:schema, :pipe_through, :plug],
   normalize_pipes: true
@@ -104,6 +105,7 @@ Create `.ex_dna.exs` in your project root:
 | Option | CLI flag | Default | Description |
 |--------|----------|---------|-------------|
 | `min_mass` | `--min-mass` | `30` | Minimum AST nodes for a fragment |
+| `min_occurrences` | '--min-occurrences` | `2` | Minimum number of code occurrences to label a clone |
 | `min_similarity` | `--min-similarity` | `1.0` | Threshold for Type-III (set < 1.0 to enable) |
 | `literal_mode` | `--literal-mode` | `keep` | `keep` = Type-I only, `abstract` = also Type-II |
 | `normalize_pipes` | `--normalize-pipes` | `false` | Treat `x \|> f()` same as `f(x)` |

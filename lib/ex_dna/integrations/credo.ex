@@ -36,6 +36,7 @@ if Code.ensure_loaded?(Credo.Check) do
 
         {ExDNA.Credo, [
           min_mass: 40,
+          min_occurrences: 3,
           literal_mode: :abstract,
           excluded_macros: [:schema, :pipe_through],
           normalize_pipes: true,
@@ -51,6 +52,7 @@ if Code.ensure_loaded?(Credo.Check) do
       tags: [:ex_dna],
       param_defaults: [
         min_mass: 30,
+        min_occurrences: 2,
         literal_mode: :keep,
         excluded_macros: [],
         normalize_pipes: false,
@@ -76,6 +78,7 @@ if Code.ensure_loaded?(Credo.Check) do
         """,
         params: [
           min_mass: "Minimum AST node count for a code fragment to be considered.",
+          min_occurrences: "Minimum number of code occurrences to label a clone",
           literal_mode:
             "`keep` for exact clones only (Type-I), `abstract` to also detect renamed-variable clones (Type-II).",
           excluded_macros:
@@ -183,6 +186,7 @@ if Code.ensure_loaded?(Credo.Check) do
         paths: [],
         reporters: [],
         min_mass: Params.get(params, :min_mass, __MODULE__),
+        min_occurrences: Params.get(params, :min_occurrences, __MODULE__),
         literal_mode: Params.get(params, :literal_mode, __MODULE__),
         excluded_macros: Params.get(params, :excluded_macros, __MODULE__),
         normalize_pipes: Params.get(params, :normalize_pipes, __MODULE__),

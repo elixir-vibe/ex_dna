@@ -14,6 +14,7 @@ defmodule ExDNA.Config do
 
       %{
         min_mass: 25,
+        min_occurrences: 3,
         ignore: ["lib/my_app_web/templates/**"],
         excluded_macros: [:schema, :pipe_through, :plug],
         normalize_pipes: true
@@ -25,13 +26,13 @@ defmodule ExDNA.Config do
   @defaults %{
     paths: ["lib/"],
     min_mass: 30,
+    min_occurrences: 2,
     min_similarity: 1.0,
     ignore: [],
     reporters: [ExDNA.Reporter.Console],
     literal_mode: :keep,
     normalize_pipes: false,
     excluded_macros: [],
-    allowed_repetitions: 1,
     ignored_attributes: [
       :moduledoc,
       :doc,
@@ -68,6 +69,7 @@ defmodule ExDNA.Config do
   @type t :: %__MODULE__{
           paths: [String.t()],
           min_mass: pos_integer(),
+          min_occurrences: pos_integer(),
           min_similarity: float(),
           ignore: [String.t()],
           reporters: [module()],
@@ -98,6 +100,11 @@ defmodule ExDNA.Config do
   defp validate!(config) do
     unless is_integer(config.min_mass) and config.min_mass > 0 do
       raise ArgumentError, "min_mass must be a positive integer, got: #{inspect(config.min_mass)}"
+    end
+
+    unless is_integer(config.min_occurrences) and config.min_occurrences > 1 do
+      raise ArgumentError,
+            "min_occurrences must be an integer greater than 1, got: #{inspect(config.min_occurrences)}"
     end
 
     unless is_float(config.min_similarity) and config.min_similarity >= 0.0 and
