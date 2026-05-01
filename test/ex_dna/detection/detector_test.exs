@@ -132,6 +132,62 @@ defmodule ExDNA.Detection.DetectorTest do
       assert clones == []
     end
 
+    test "respects allowed_repetitions",  %{dir: dir} do
+      write_fixture(dir, "a.ex", """
+      defmodule A do
+        def process(data) do
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.sort()
+          |> Enum.take(5)
+        end
+
+        def cloned_only_twice(data) do
+          data
+          |> Enum.map(fn x -> x * 4 end)
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      write_fixture(dir, "b.ex", """
+      defmodule B do
+        def process(data) do
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.sort()
+          |> Enum.take(5)
+        end
+
+        def cloned_only_twice(data) do
+          data
+          |> Enum.map(fn x -> x * 4 end)
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      write_fixture(dir, "c.ex", """
+      defmodule C do
+        def process(data) do
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.sort()
+          |> Enum.take(5)
+        end
+      end
+      """)
+
+      config = Config.new(paths: [dir], min_mass: 5, reporters: [], allowed_repetitions: 2)
+      {clones, _} = Detector.run(config)
+
+      fragments = Enum.map(clones, &(length(&1.fragments)))
+      assert fragments == [3,3,3], "should only detect clones with 3 repetitions or more"
+    end
+
     test "reports real-world controller clones with differing callees without suggesting extraction",
          %{
            dir: dir

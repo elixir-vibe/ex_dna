@@ -67,6 +67,7 @@ defmodule ExDNA.Detection.Detector do
     type_iii_clones = find_fuzzy_clones(fragments, exact_clones, config)
 
     (exact_clones ++ type_iii_clones)
+    |> Enum.filter(&(length(&1.fragments) > config.allowed_repetitions))
     |> Enum.map(&Pipeline.attach_suggestion/1)
     |> BehaviourSuggestion.analyze(Map.new(file_ast_pairs))
     |> Enum.sort_by(& &1.mass, :desc)

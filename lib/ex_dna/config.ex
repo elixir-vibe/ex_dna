@@ -31,6 +31,7 @@ defmodule ExDNA.Config do
     literal_mode: :keep,
     normalize_pipes: false,
     excluded_macros: [],
+    allowed_repetitions: 1,
     ignored_attributes: [
       :moduledoc,
       :doc,
