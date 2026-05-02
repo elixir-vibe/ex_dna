@@ -105,7 +105,7 @@ Create `.ex_dna.exs` in your project root:
 | Option | CLI flag | Default | Description |
 |--------|----------|---------|-------------|
 | `min_mass` | `--min-mass` | `30` | Minimum AST nodes for a fragment |
-| `min_occurrences` | '--min-occurrences` | `2` | Minimum number of code occurrences to label a clone |
+| `min_occurrences` | `--min-occurrences` | `2` | Minimum number of code occurrences to label a clone |
 | `min_similarity` | `--min-similarity` | `1.0` | Threshold for Type-III (set < 1.0 to enable) |
 | `literal_mode` | `--literal-mode` | `keep` | `keep` = Type-I only, `abstract` = also Type-II |
 | `normalize_pipes` | `--normalize-pipes` | `false` | Treat `x \|> f()` same as `f(x)` |
@@ -143,7 +143,6 @@ end
 Note that `max_clones` applies after report filters like `min_occurrences` so
 clones that were not reported due to `min_occurrences` are not counted towards the `max_clones` budget.
 
-applies after report filters like min_occurrences
 ## Incremental detection
 
 Add ExDNA as a compiler for automatic detection on `mix compile`:

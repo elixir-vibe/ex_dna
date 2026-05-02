@@ -11,6 +11,7 @@ defmodule Mix.Tasks.ExDna do
   ## Command-line options
 
     * `--min-mass` — minimum AST node count (default: 30)
+    * `--min-occurrences` — minimum number of code occurrences to report a clone (default: 2)
     * `--min-similarity` — similarity threshold 0.0–1.0 (default: 1.0).
       Values below 1.0 enable Type-III near-miss detection.
     * `--literal-mode` — `keep` (Type-I only) or `abstract` (also Type-II). Default: `keep`
