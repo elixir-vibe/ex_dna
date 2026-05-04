@@ -5,30 +5,34 @@ defmodule ExDNA.AST.Normalizer do
   Transforms an AST so that structurally equivalent code produces identical
   output regardless of variable names, metadata, or (optionally) literal values.
 
-  ## Normalization passes
+  All normalizations are performed in at most two AST traversals:
+
+  **Pass 1** (always, single fused walk):
 
   1. **Metadata stripping** — removes line numbers, columns, counters, and
      other compiler metadata from every node.
-  2. **Variable normalization** — replaces variable names with positional
-     placeholders (`:$0`, `:$1`, …) based on first-occurrence order.
-  3. **Literal abstraction** (optional) — replaces concrete literals with
-     type-tagged placeholders to detect Type-II clones.
-  4. **Boolean operator canonicalization** — `&&`/`||`/`!` are rewritten to
+  2. **Boolean operator canonicalization** — `&&`/`||`/`!` are rewritten to
      `and`/`or`/`not` so stylistic choice between short-circuit and keyword
-     operators doesn’t affect comparison.
-  5. **Sigil expansion** — `~w(foo bar)a` is expanded to `[:foo, :bar]` (and
+     operators doesn't affect comparison.
+  3. **Sigil expansion** — `~w(foo bar)a` is expanded to `[:foo, :bar]` (and
      likewise for string modifiers) so sigil word-lists match their literal
      equivalents.
-  6. **Map/struct field sorting** (abstract mode) — sorts key-value pairs
-     so that `%{b: 1, a: 2}` and `%{a: 2, b: 1}` produce the same hash.
-  7. **Guard abstraction** (abstract mode) — in `when` clauses, replaces
-     all function/macro call names with a `:__guard__` placeholder so that
+  4. **Pipe normalization** (optional) — `x |> f()` is rewritten to `f(x)`.
+  5. **Variable normalization** — replaces variable names with positional
+     placeholders (`:$0`, `:$1`, …) based on first-occurrence order.
+
+  **Pass 2** (abstract mode only, single recursive walk):
+
+  6. **Literal abstraction** — replaces concrete literals with type-tagged
+     placeholders to detect Type-II clones.
+  7. **Map/struct field sorting** — sorts key-value pairs so that
+     `%{b: 1, a: 2}` and `%{a: 2, b: 1}` produce the same hash.
+  8. **Guard abstraction** — in `when` clauses, replaces all function/macro
+     call names with a `:__guard__` placeholder so that
      `when is_binary(x)` and `when is_atom(x)` produce the same hash.
      Covers all Kernel guards, Erlang BIF guards, `defguard` macros,
      and library guards like `Integer.is_even/1`.
   """
-
-  alias ExDNA.AST.PipeNormalizer
 
   @type option :: {:literal_mode, :keep | :abstract} | {:normalize_pipes, boolean()}
 
@@ -48,13 +52,12 @@ defmodule ExDNA.AST.Normalizer do
     literal_mode = Keyword.get(opts, :literal_mode, :keep)
     normalize_pipes = Keyword.get(opts, :normalize_pipes, false)
 
-    ast
-    |> strip_metadata()
-    |> canonicalize_operators()
-    |> expand_sigils()
-    |> maybe_normalize_pipes(normalize_pipes)
-    |> normalize_variables()
-    |> maybe_abstract_literals(literal_mode)
+    {normalized, _env} = fused_walk(ast, normalize_pipes, %{})
+
+    case literal_mode do
+      :keep -> normalized
+      :abstract -> abstract_walk(normalized)
+    end
   end
 
   @doc """
@@ -80,50 +83,94 @@ defmodule ExDNA.AST.Normalizer do
     normalized
   end
 
-  @special_vars ~w(__MODULE__ __ENV__ __DIR__ __CALLER__ __STACKTRACE__ _)a
+  # --- Pass 1: fused walk (strip metadata + canonicalize + expand + pipes + rename vars) ---
 
-  defp rename_var({name, meta, context}, env) when is_atom(name) and is_atom(context) do
+  @special_vars ~w(__MODULE__ __ENV__ __DIR__ __CALLER__ __STACKTRACE__ _)a
+  @bool_canon %{:&& => :and, :|| => :or, :! => :not}
+
+  # Sigil ~w with static content — expand before recursing
+  defp fused_walk({:sigil_w, _meta, [{:<<>>, _, [content]}, modifier]}, _pipes, env)
+       when is_binary(content) do
+    expanded = expand_sigil_w(content, modifier)
+    # Expanded list is all literals, no variables to rename
+    {expanded, env}
+  end
+
+  # Pipe: flatten then recurse into the result
+  defp fused_walk({:|>, _meta, [left, right]}, true = pipes, env) do
+    {left_n, env} = fused_walk(left, pipes, env)
+    {right_n, env} = fused_walk(right, pipes, env)
+    {inject_first_arg(right_n, left_n), env}
+  end
+
+  # Variable node
+  defp fused_walk({name, _meta, context}, _pipes, env)
+       when is_atom(name) and is_atom(context) do
     if name in @special_vars do
-      {{name, meta, context}, env}
+      {{name, [], context}, env}
     else
       key = {name, context}
 
       case env do
         %{^key => placeholder} ->
-          {{placeholder, meta, context}, env}
+          {{placeholder, [], context}, env}
 
         _ ->
           index = map_size(env)
           placeholder = :"$#{index}"
-          {{placeholder, meta, context}, Map.put(env, key, placeholder)}
+          {{placeholder, [], context}, Map.put(env, key, placeholder)}
       end
     end
   end
 
-  defp rename_var(node, env), do: {node, env}
-
-  @bool_canon %{:&& => :and, :|| => :or, :! => :not}
-
-  defp canonicalize_operators(ast) do
-    Macro.prewalk(ast, fn
-      {op, meta, args} when is_map_key(@bool_canon, op) ->
-        {@bool_canon[op], meta, args}
-
-      other ->
-        other
-    end)
+  # Call node with boolean canonicalization
+  defp fused_walk({form, _meta, args}, pipes, env) when is_list(args) do
+    canonical_form = Map.get(@bool_canon, form, form)
+    {form_n, env} = fused_walk(canonical_form, pipes, env)
+    {args_n, env} = fused_walk_list(args, pipes, env)
+    {{form_n, [], args_n}, env}
   end
 
-  defp expand_sigils(ast) do
-    Macro.prewalk(ast, fn
-      {:sigil_w, _meta, [{:<<>>, _, [content]}, modifier]}
-      when is_binary(content) ->
-        expand_sigil_w(content, modifier)
-
-      other ->
-        other
-    end)
+  # Two-tuple (keyword pair, etc.)
+  defp fused_walk({left, right}, pipes, env) do
+    {left_n, env} = fused_walk(left, pipes, env)
+    {right_n, env} = fused_walk(right, pipes, env)
+    {{left_n, right_n}, env}
   end
+
+  # List
+  defp fused_walk(list, pipes, env) when is_list(list) do
+    fused_walk_list(list, pipes, env)
+  end
+
+  # Leaf (literal or atom) — pass through
+  defp fused_walk(leaf, _pipes, env), do: {leaf, env}
+
+  defp fused_walk_list(list, pipes, env) do
+    {reversed, env} =
+      Enum.reduce(list, {[], env}, fn node, {acc, env} ->
+        {n, env} = fused_walk(node, pipes, env)
+        {[n | acc], env}
+      end)
+
+    {Enum.reverse(reversed), env}
+  end
+
+  # --- Pipe injection (from PipeNormalizer, inlined for the fused walk) ---
+
+  defp inject_first_arg({call, meta, args}, first_arg) when is_list(args) do
+    {call, meta, [first_arg | args]}
+  end
+
+  defp inject_first_arg({call, meta, nil}, first_arg) do
+    {call, meta, [first_arg]}
+  end
+
+  defp inject_first_arg(other, first_arg) do
+    {other, [], [first_arg]}
+  end
+
+  # --- Sigil expansion ---
 
   defp expand_sigil_w(content, modifier) do
     words = String.split(content)
@@ -135,11 +182,7 @@ defmodule ExDNA.AST.Normalizer do
     end
   end
 
-  defp maybe_normalize_pipes(ast, false), do: ast
-  defp maybe_normalize_pipes(ast, true), do: PipeNormalizer.normalize(ast)
-
-  defp maybe_abstract_literals(ast, :keep), do: ast
-  defp maybe_abstract_literals(ast, :abstract), do: abstract_walk(ast)
+  # --- Pass 2: abstract walk (literal abstraction + map sorting + guard abstraction) ---
 
   defp abstract_walk({:when, meta, [pattern, guard]}) do
     {:when, meta, [abstract_walk(pattern), abstract_guard(guard)]}
@@ -176,10 +219,6 @@ defmodule ExDNA.AST.Normalizer do
   defp abstract_walk(str) when is_binary(str), do: :__string__
   defp abstract_walk(atom) when is_atom(atom), do: atom
 
-  # Guard-position abstraction: replaces all call names with :__guard__
-  # so that guards differing only in predicate (`is_binary` vs `is_atom`,
-  # `Integer.is_even` vs `Integer.is_odd`, custom defguards, etc.) hash
-  # identically.
   defp abstract_guard({:and, meta, [left, right]}) do
     {:and, meta, [abstract_guard(left), abstract_guard(right)]}
   end
@@ -207,7 +246,7 @@ defmodule ExDNA.AST.Normalizer do
   defp abstract_guard(other), do: abstract_walk(other)
 
   defp walk_map_fields(fields) do
-    if all_kv_pairs?(fields) do
+    if Enum.all?(fields, &match?({_, _}, &1)) do
       fields
       |> Enum.map(fn {k, v} -> {k, abstract_walk(v)} end)
       |> Enum.sort_by(fn {k, _v} -> k end)
@@ -216,10 +255,25 @@ defmodule ExDNA.AST.Normalizer do
     end
   end
 
-  defp all_kv_pairs?(fields) do
-    Enum.all?(fields, fn
-      {_k, _v} -> true
-      _ -> false
-    end)
+  # --- Legacy public API kept for rename_var/2 usage in tests ---
+
+  defp rename_var({name, meta, context}, env) when is_atom(name) and is_atom(context) do
+    if name in @special_vars do
+      {{name, meta, context}, env}
+    else
+      key = {name, context}
+
+      case env do
+        %{^key => placeholder} ->
+          {{placeholder, meta, context}, env}
+
+        _ ->
+          index = map_size(env)
+          placeholder = :"$#{index}"
+          {{placeholder, meta, context}, Map.put(env, key, placeholder)}
+      end
+    end
   end
+
+  defp rename_var(node, env), do: {node, env}
 end
