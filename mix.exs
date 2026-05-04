@@ -34,6 +34,8 @@ defmodule ExDNA.MixProject do
     [
       {:jason, "~> 1.0"},
       {:gen_lsp, "~> 0.11", optional: true},
+      {:makeup, "~> 1.0", optional: true},
+      {:makeup_elixir, "~> 0.14 or ~> 1.0", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", optional: true},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},

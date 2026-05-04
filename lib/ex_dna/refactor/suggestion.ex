@@ -33,7 +33,8 @@ defmodule ExDNA.Refactor.Suggestion do
   simple extract; when there are holes they become function parameters.
   """
   @spec suggest(Clone.t()) :: t() | nil
-  def suggest(%Clone{fragments: frags}) when length(frags) < 2, do: nil
+  def suggest(%Clone{fragments: []}), do: nil
+  def suggest(%Clone{fragments: [_]}), do: nil
 
   def suggest(%Clone{} = clone) do
     if MacroSuggestion.macro_candidate?(clone) do
@@ -179,6 +180,7 @@ defmodule ExDNA.Refactor.Suggestion do
         single
 
       calls ->
+        # credo:disable-for-next-line ExSlop.Check.Refactor.ListLast
         last = List.last(calls)
         second_last = Enum.at(calls, -2)
 

@@ -15,6 +15,7 @@ defmodule Mix.Tasks.ExDna.Explain do
 
   alias ExDNA.AST.{AntiUnifier, Normalizer}
   alias ExDNA.CLI.Options
+  alias IO.ANSI
 
   @impl Mix.Task
   def run(argv) do
@@ -60,9 +61,9 @@ defmodule Mix.Tasks.ExDna.Explain do
       nil ->
         IO.puts([
           "\n",
-          IO.ANSI.red(),
+          ANSI.red(),
           "Clone ##{clone_index} not found. ",
-          IO.ANSI.reset(),
+          ANSI.reset(),
           "Found #{report.stats.total_clones} clones total.\n"
         ])
 
@@ -74,25 +75,25 @@ defmodule Mix.Tasks.ExDna.Explain do
   defp explain_clone(clone, index) do
     IO.puts([
       "\n",
-      IO.ANSI.yellow(),
+      ANSI.yellow(),
       "═══ Clone ##{index} — Detailed Analysis ",
       String.duplicate("═", 40),
-      IO.ANSI.reset(),
+      ANSI.reset(),
       "\n"
     ])
 
-    IO.puts([IO.ANSI.cyan(), "Type: ", IO.ANSI.reset(), format_type(clone.type)])
-    IO.puts([IO.ANSI.cyan(), "Mass: ", IO.ANSI.reset(), "#{clone.mass} AST nodes"])
+    IO.puts([ANSI.cyan(), "Type: ", ANSI.reset(), format_type(clone.type)])
+    IO.puts([ANSI.cyan(), "Mass: ", ANSI.reset(), "#{clone.mass} AST nodes"])
 
     IO.puts([
-      IO.ANSI.cyan(),
+      ANSI.cyan(),
       "Locations: ",
-      IO.ANSI.reset(),
+      ANSI.reset(),
       "#{length(clone.fragments)} occurrences\n"
     ])
 
     Enum.each(clone.fragments, fn frag ->
-      IO.puts(["  • ", IO.ANSI.faint(), "#{frag.file}:#{frag.line}", IO.ANSI.reset()])
+      IO.puts(["  • ", ANSI.faint(), "#{frag.file}:#{frag.line}", ANSI.reset()])
     end)
 
     if length(clone.fragments) >= 2 do
@@ -105,10 +106,10 @@ defmodule Mix.Tasks.ExDna.Explain do
 
       IO.puts([
         "\n",
-        IO.ANSI.yellow(),
+        ANSI.yellow(),
         "─── Common Structure ",
         String.duplicate("─", 42),
-        IO.ANSI.reset(),
+        ANSI.reset(),
         "\n"
       ])
 
@@ -117,10 +118,10 @@ defmodule Mix.Tasks.ExDna.Explain do
       if holes != [] do
         IO.puts([
           "\n",
-          IO.ANSI.yellow(),
+          ANSI.yellow(),
           "─── Divergence Points (#{length(holes)} holes) ",
           String.duplicate("─", 30),
-          IO.ANSI.reset(),
+          ANSI.reset(),
           "\n"
         ])
 
@@ -129,23 +130,23 @@ defmodule Mix.Tasks.ExDna.Explain do
 
           IO.puts([
             "  ",
-            IO.ANSI.magenta(),
+            ANSI.magenta(),
             "#{hole.var}",
-            IO.ANSI.reset()
+            ANSI.reset()
           ])
 
           IO.puts([
             "    fragment A: ",
-            IO.ANSI.faint(),
+            ANSI.faint(),
             Macro.to_string(val_a),
-            IO.ANSI.reset()
+            ANSI.reset()
           ])
 
           IO.puts([
             "    fragment B: ",
-            IO.ANSI.faint(),
+            ANSI.faint(),
             Macro.to_string(val_b),
-            IO.ANSI.reset(),
+            ANSI.reset(),
             "\n"
           ])
         end)
@@ -153,10 +154,10 @@ defmodule Mix.Tasks.ExDna.Explain do
 
       if clone.suggestion do
         IO.puts([
-          IO.ANSI.yellow(),
+          ANSI.yellow(),
           "─── Suggested Refactoring ",
           String.duplicate("─", 37),
-          IO.ANSI.reset(),
+          ANSI.reset(),
           "\n"
         ])
 
@@ -169,24 +170,24 @@ defmodule Mix.Tasks.ExDna.Explain do
 
   defp print_suggestion(%{kind: :extract_function} = s) do
     params = Enum.join(s.params, ", ")
-    IO.puts([IO.ANSI.green(), "  defp #{s.name}(#{params}) do", IO.ANSI.reset()])
+    IO.puts([ANSI.green(), "  defp #{s.name}(#{params}) do", ANSI.reset()])
 
     s.body
     |> String.split("\n")
     |> Enum.each(fn line ->
-      IO.puts([IO.ANSI.green(), "    #{line}", IO.ANSI.reset()])
+      IO.puts([ANSI.green(), "    #{line}", ANSI.reset()])
     end)
 
-    IO.puts([IO.ANSI.green(), "  end", IO.ANSI.reset(), "\n"])
+    IO.puts([ANSI.green(), "  end", ANSI.reset(), "\n"])
 
-    IO.puts([IO.ANSI.cyan(), "  Call sites:", IO.ANSI.reset(), "\n"])
+    IO.puts([ANSI.cyan(), "  Call sites:", ANSI.reset(), "\n"])
 
     Enum.each(s.call_sites, fn site ->
       IO.puts([
         "    ",
-        IO.ANSI.faint(),
+        ANSI.faint(),
         "#{site.file}:#{site.line} → #{site.call}",
-        IO.ANSI.reset()
+        ANSI.reset()
       ])
     end)
   end
@@ -195,7 +196,7 @@ defmodule Mix.Tasks.ExDna.Explain do
     code
     |> String.split("\n")
     |> Enum.each(fn line ->
-      IO.puts(["  ", IO.ANSI.faint(), line, IO.ANSI.reset()])
+      IO.puts(["  ", ANSI.faint(), line, ANSI.reset()])
     end)
   end
 

@@ -86,28 +86,27 @@ defmodule ExDNA.Detection.Fuzzy do
     |> MapSet.to_list()
   end
 
-  defp pairs_from_posting(indices, pairs, by_idx, sig_cache, mass_tolerance)
-       when length(indices) > @lsh_cutover do
-    for i <- indices,
-        j <- indices,
-        i < j,
-        mass_compatible?(by_idx[i], by_idx[j], mass_tolerance),
-        not same_location?(by_idx[i], by_idx[j]),
-        minhash_compatible?(sig_cache[i], sig_cache[j]),
-        reduce: pairs do
-      acc -> MapSet.put(acc, {i, j})
-    end
-  end
-
-  defp pairs_from_posting(indices, pairs, by_idx, _sig_cache, mass_tolerance) do
-    for i <- indices,
-        j <- indices,
-        i < j,
-        mass_compatible?(by_idx[i], by_idx[j], mass_tolerance),
-        not same_location?(by_idx[i], by_idx[j]),
-        jaccard_compatible?(by_idx[i], by_idx[j]),
-        reduce: pairs do
-      acc -> MapSet.put(acc, {i, j})
+  defp pairs_from_posting(indices, pairs, by_idx, sig_cache, mass_tolerance) do
+    if length(indices) > @lsh_cutover do
+      for i <- indices,
+          j <- indices,
+          i < j,
+          mass_compatible?(by_idx[i], by_idx[j], mass_tolerance),
+          not same_location?(by_idx[i], by_idx[j]),
+          minhash_compatible?(sig_cache[i], sig_cache[j]),
+          reduce: pairs do
+        acc -> MapSet.put(acc, {i, j})
+      end
+    else
+      for i <- indices,
+          j <- indices,
+          i < j,
+          mass_compatible?(by_idx[i], by_idx[j], mass_tolerance),
+          not same_location?(by_idx[i], by_idx[j]),
+          jaccard_compatible?(by_idx[i], by_idx[j]),
+          reduce: pairs do
+        acc -> MapSet.put(acc, {i, j})
+      end
     end
   end
 

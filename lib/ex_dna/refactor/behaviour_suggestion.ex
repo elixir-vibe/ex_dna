@@ -39,12 +39,13 @@ defmodule ExDNA.Refactor.BehaviourSuggestion do
   @spec suggest(Clone.t(), %{String.t() => Macro.t()}) :: t() | nil
   def suggest(clone, file_asts \\ %{})
 
-  def suggest(%Clone{fragments: frags}, _file_asts) when length(frags) < 2, do: nil
+  def suggest(%Clone{fragments: []}, _file_asts), do: nil
+  def suggest(%Clone{fragments: [_]}, _file_asts), do: nil
 
   def suggest(%Clone{fragments: frags}, file_asts) do
     with true <- all_defs?(frags),
          {name, arity} <- shared_name_arity(frags),
-         modules when length(modules) >= 2 <- distinct_modules(frags, file_asts) do
+         [_, _ | _] = modules <- distinct_modules(frags, file_asts) do
       %__MODULE__{
         callback_name: name,
         callback_arity: arity,

@@ -96,7 +96,8 @@ defmodule ExDNA.Detection.LSH do
     end)
   end
 
-  defp add_pairs_from_bucket(members, pairs) when length(members) < 2, do: pairs
+  defp add_pairs_from_bucket([], pairs), do: pairs
+  defp add_pairs_from_bucket([_], pairs), do: pairs
 
   defp add_pairs_from_bucket(members, pairs) do
     indices = Enum.map(members, &elem(&1, 0))

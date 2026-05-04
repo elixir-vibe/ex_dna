@@ -17,7 +17,9 @@ defmodule ExDNA.Refactor.MacroSuggestion do
   Returns true if the clone group qualifies for a macro extraction suggestion.
   """
   @spec macro_candidate?(Clone.t()) :: boolean()
-  def macro_candidate?(%Clone{fragments: frags}) when length(frags) < 3, do: false
+  def macro_candidate?(%Clone{fragments: []}), do: false
+  def macro_candidate?(%Clone{fragments: [_]}), do: false
+  def macro_candidate?(%Clone{fragments: [_, _]}), do: false
 
   def macro_candidate?(%Clone{fragments: frags}) do
     Enum.all?(frags, fn frag ->

@@ -48,11 +48,15 @@ defmodule ExDNA.AST.AntiUnifier do
 
   # Call nodes: {form, meta, args} where args is a list
   defp do_anti_unify({form_a, meta_a, args_a}, {form_b, meta_b, args_b}, state)
-       when is_list(args_a) and is_list(args_b) and length(args_a) == length(args_b) do
-    {form, state} = do_anti_unify(form_a, form_b, state)
-    meta = merge_meta(meta_a, meta_b)
-    {args, state} = anti_unify_list(args_a, args_b, state)
-    {{form, meta, args}, state}
+       when is_list(args_a) and is_list(args_b) do
+    if length(args_a) == length(args_b) do
+      {form, state} = do_anti_unify(form_a, form_b, state)
+      meta = merge_meta(meta_a, meta_b)
+      {args, state} = anti_unify_list(args_a, args_b, state)
+      {{form, meta, args}, state}
+    else
+      make_hole({form_a, meta_a, args_a}, {form_b, meta_b, args_b}, state)
+    end
   end
 
   defp do_anti_unify({la, ra}, {lb, rb}, state) do
@@ -62,8 +66,12 @@ defmodule ExDNA.AST.AntiUnifier do
   end
 
   defp do_anti_unify(list_a, list_b, state)
-       when is_list(list_a) and is_list(list_b) and length(list_a) == length(list_b) do
-    anti_unify_list(list_a, list_b, state)
+       when is_list(list_a) and is_list(list_b) do
+    if length(list_a) == length(list_b) do
+      anti_unify_list(list_a, list_b, state)
+    else
+      make_hole(list_a, list_b, state)
+    end
   end
 
   defp do_anti_unify(a, b, state), do: make_hole(a, b, state)

@@ -134,6 +134,7 @@ defmodule ExDNA.AST.ClauseGrouperTest do
 
       assert length(body) == 2
       assert match?({:@, _, _}, hd(body))
+      # credo:disable-for-next-line ExSlop.Check.Refactor.ListLast
       assert match?({:__ex_dna_grouped_def__, _, _}, List.last(body))
     end
 

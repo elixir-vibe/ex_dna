@@ -144,18 +144,16 @@ defmodule ExDNA.AST.Fingerprint do
 
   # --- Sibling windows ---
 
-  defp module_body?(children) when length(children) > 30, do: false
-
   defp module_body?(children) do
-    Enum.any?(children, fn
-      {form, _, _} when form in @module_level_forms -> true
-      _ -> false
-    end)
+    length(children) <= 30 and
+      Enum.any?(children, fn
+        {form, _, _} when form in @module_level_forms -> true
+        _ -> false
+      end)
   end
 
-  defp sibling_windows(children, _per_child_subs, _ctx, acc)
-       when length(children) < 2,
-       do: acc
+  defp sibling_windows([], _per_child_subs, _ctx, acc), do: acc
+  defp sibling_windows([_], _per_child_subs, _ctx, acc), do: acc
 
   defp sibling_windows(children, per_child_subs, ctx, acc) do
     children_with_subs =
