@@ -13,9 +13,15 @@ defmodule ExDNA.AST.Normalizer do
      placeholders (`:$0`, `:$1`, …) based on first-occurrence order.
   3. **Literal abstraction** (optional) — replaces concrete literals with
      type-tagged placeholders to detect Type-II clones.
-  4. **Map/struct field sorting** (abstract mode) — sorts key-value pairs
+  4. **Boolean operator canonicalization** — `&&`/`||`/`!` are rewritten to
+     `and`/`or`/`not` so stylistic choice between short-circuit and keyword
+     operators doesn’t affect comparison.
+  5. **Sigil expansion** — `~w(foo bar)a` is expanded to `[:foo, :bar]` (and
+     likewise for string modifiers) so sigil word-lists match their literal
+     equivalents.
+  6. **Map/struct field sorting** (abstract mode) — sorts key-value pairs
      so that `%{b: 1, a: 2}` and `%{a: 2, b: 1}` produce the same hash.
-  5. **Guard abstraction** (abstract mode) — in `when` clauses, replaces
+  7. **Guard abstraction** (abstract mode) — in `when` clauses, replaces
      all function/macro call names with a `:__guard__` placeholder so that
      `when is_binary(x)` and `when is_atom(x)` produce the same hash.
      Covers all Kernel guards, Erlang BIF guards, `defguard` macros,
@@ -44,6 +50,8 @@ defmodule ExDNA.AST.Normalizer do
 
     ast
     |> strip_metadata()
+    |> canonicalize_operators()
+    |> expand_sigils()
     |> maybe_normalize_pipes(normalize_pipes)
     |> normalize_variables()
     |> maybe_abstract_literals(literal_mode)
@@ -93,6 +101,39 @@ defmodule ExDNA.AST.Normalizer do
   end
 
   defp rename_var(node, env), do: {node, env}
+
+  @bool_canon %{:&& => :and, :|| => :or, :! => :not}
+
+  defp canonicalize_operators(ast) do
+    Macro.prewalk(ast, fn
+      {op, meta, args} when is_map_key(@bool_canon, op) ->
+        {@bool_canon[op], meta, args}
+
+      other ->
+        other
+    end)
+  end
+
+  defp expand_sigils(ast) do
+    Macro.prewalk(ast, fn
+      {:sigil_w, _meta, [{:<<>>, _, [content]}, modifier]}
+      when is_binary(content) ->
+        expand_sigil_w(content, modifier)
+
+      other ->
+        other
+    end)
+  end
+
+  defp expand_sigil_w(content, modifier) do
+    words = String.split(content)
+
+    case modifier do
+      ~c"a" -> Enum.map(words, &String.to_atom/1)
+      ~c"c" -> Enum.map(words, &String.to_charlist/1)
+      _ -> words
+    end
+  end
 
   defp maybe_normalize_pipes(ast, false), do: ast
   defp maybe_normalize_pipes(ast, true), do: PipeNormalizer.normalize(ast)

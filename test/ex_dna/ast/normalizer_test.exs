@@ -50,6 +50,67 @@ defmodule ExDNA.AST.NormalizerTest do
     end
   end
 
+  describe "boolean operator canonicalization" do
+    test "&& and 'and' produce identical normalized AST" do
+      ast1 = Code.string_to_quoted!("a && b")
+      ast2 = Code.string_to_quoted!("a and b")
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+
+    test "|| and 'or' produce identical normalized AST" do
+      ast1 = Code.string_to_quoted!("a || b")
+      ast2 = Code.string_to_quoted!("a or b")
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+
+    test "! and 'not' produce identical normalized AST" do
+      ast1 = Code.string_to_quoted!("!a")
+      ast2 = Code.string_to_quoted!("not a")
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+
+    test "nested boolean operators are canonicalized" do
+      ast1 = Code.string_to_quoted!("a && b || !c")
+      ast2 = Code.string_to_quoted!("a and b or not c")
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+  end
+
+  describe "sigil expansion" do
+    test "~w()a matches atom list" do
+      ast1 = Code.string_to_quoted!("~w(foo bar baz)a")
+      ast2 = Code.string_to_quoted!("[:foo, :bar, :baz]")
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+
+    test "~w()s matches string list" do
+      ast1 = Code.string_to_quoted!("~w(foo bar)s")
+      ast2 = Code.string_to_quoted!(~s(["foo", "bar"]))
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+
+    test "~w() without modifier matches string list" do
+      ast1 = Code.string_to_quoted!("~w(hello world)")
+      ast2 = Code.string_to_quoted!(~s(["hello", "world"]))
+
+      assert Normalizer.normalize(ast1) == Normalizer.normalize(ast2)
+    end
+
+    test "~w with interpolation is not expanded" do
+      ast = Code.string_to_quoted!(~S"~w(foo #{x} bar)a")
+      norm = Normalizer.normalize(ast)
+
+      {form, _, _} = norm
+      assert form == :sigil_w
+    end
+  end
+
   describe "normalize/2 with literal_mode: :keep" do
     test "identical code produces identical normalized AST" do
       code = "fn(a, b) -> a + b end"
