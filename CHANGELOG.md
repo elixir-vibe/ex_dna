@@ -4,17 +4,23 @@
 
 ### New
 
-- **Configurable fuzzy detection tuning** — Three previously hardcoded
-  constants are now available as config options and CLI flags:
+- **Guard-aware normalization** — in `:abstract` mode, guard type-check
+  functions (`is_binary`, `is_atom`, `is_integer`, …) are replaced with a
+  placeholder so that functions differing only in guard predicates are
+  detected as clones.
+- **MinHash-accelerated fuzzy detection** — large posting lists (>50
+  entries) now use MinHash signatures for O(k) approximate Jaccard instead
+  of O(|A|+|B|) exact set operations. Removes the hard posting-list cap,
+  improving recall for large monorepos without sacrificing precision.
+  Plausible (465 files) full I/II/III detection ≈ 9% faster.
+- **Configurable fuzzy detection tuning** — previously hardcoded constants
+  are now available as config options and CLI flags:
   - `max_window_size` (`--max-window-size`, default: 4) — max consecutive
     sibling functions combined into a single fingerprint for cross-module
     clone detection. Raise to catch clones spanning more adjacent functions.
   - `mass_tolerance` (`--mass-tolerance`, default: 0.3) — max relative size
     difference for Type-III comparison. Raise toward 0.5 to catch clones
     between thin wrappers and fat implementations.
-  - `max_posting_list` (`--max-posting-list`, default: 100) — cap on
-    fragments sharing a sub-hash considered as Type-III candidates. Raise
-    for large monorepos with many structurally similar modules.
 
 ## 1.4.3
 

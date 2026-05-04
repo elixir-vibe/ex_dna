@@ -35,11 +35,7 @@ defmodule ExDNA.Config do
       the larger. Raise toward `0.5` to catch clones between thin wrappers
       and fat implementations. Must be in `(0.0, 1.0]`. Default: `0.3`.
 
-    * `:max_posting_list` — maximum number of fragments sharing the same
-      structural sub-hash that are considered as Type-III candidates. Caps
-      the quadratic blowup from very common patterns. Raise for large
-      monorepos with many structurally similar modules at the expense of
-      detection time. Must be ≥ 1. Default: `100`.
+
   """
 
   @defaults %{
@@ -49,7 +45,6 @@ defmodule ExDNA.Config do
     min_similarity: 1.0,
     max_window_size: 4,
     mass_tolerance: 0.3,
-    max_posting_list: 100,
     ignore: [],
     reporters: [ExDNA.Reporter.Console],
     literal_mode: :keep,
@@ -95,7 +90,6 @@ defmodule ExDNA.Config do
           min_similarity: float(),
           max_window_size: pos_integer(),
           mass_tolerance: float(),
-          max_posting_list: pos_integer(),
           ignore: [String.t()],
           reporters: [module()],
           literal_mode: literal_mode(),
@@ -128,7 +122,6 @@ defmodule ExDNA.Config do
     validate_float_range!(:min_similarity, config.min_similarity, 0.0, 1.0)
     validate_int_gte!(:max_window_size, config.max_window_size, 2)
     validate_float_range_exclusive_min!(:mass_tolerance, config.mass_tolerance, 0.0, 1.0)
-    validate_pos_int!(:max_posting_list, config.max_posting_list)
 
     unless config.literal_mode in [:keep, :abstract] do
       raise ArgumentError,

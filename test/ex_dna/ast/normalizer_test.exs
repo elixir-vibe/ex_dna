@@ -119,6 +119,46 @@ defmodule ExDNA.AST.NormalizerTest do
       assert stringified =~ "false"
       assert stringified =~ "nil"
     end
+
+    test "abstracts guard type-check functions" do
+      ast1 = Code.string_to_quoted!("def foo(x) when is_binary(x), do: x")
+      ast2 = Code.string_to_quoted!("def foo(x) when is_atom(x), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)
+
+      assert norm1 == norm2
+    end
+
+    test "abstracts compound guards with different type checks" do
+      ast1 = Code.string_to_quoted!("def foo(x) when is_binary(x) and is_list(y), do: x")
+      ast2 = Code.string_to_quoted!("def foo(x) when is_integer(x) and is_map(y), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)
+
+      assert norm1 == norm2
+    end
+
+    test "does not abstract guard functions in :keep mode" do
+      ast1 = Code.string_to_quoted!("def foo(x) when is_binary(x), do: x")
+      ast2 = Code.string_to_quoted!("def foo(x) when is_atom(x), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :keep)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :keep)
+
+      refute norm1 == norm2
+    end
+
+    test "abstracts is_* calls even outside guards" do
+      ast1 = Code.string_to_quoted!("if is_binary(x), do: x")
+      ast2 = Code.string_to_quoted!("if is_integer(x), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)
+
+      assert norm1 == norm2
+    end
   end
 end
 

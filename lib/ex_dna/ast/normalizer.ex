@@ -15,6 +15,10 @@ defmodule ExDNA.AST.Normalizer do
      type-tagged placeholders to detect Type-II clones.
   4. **Map/struct field sorting** (abstract mode) — sorts key-value pairs
      so that `%{b: 1, a: 2}` and `%{a: 2, b: 1}` produce the same hash.
+  5. **Guard abstraction** (abstract mode) — replaces guard type-check
+     function names (`is_binary`, `is_atom`, …) with a `:__guard__`
+     placeholder so that `when is_binary(x)` and `when is_atom(x)` produce
+     the same hash.
   """
 
   alias ExDNA.AST.PipeNormalizer
@@ -94,6 +98,17 @@ defmodule ExDNA.AST.Normalizer do
 
   defp maybe_abstract_literals(ast, :keep), do: ast
   defp maybe_abstract_literals(ast, :abstract), do: abstract_walk(ast)
+
+  @guard_functions ~w(
+    is_atom is_binary is_bitstring is_boolean is_float is_function
+    is_integer is_list is_map is_map_key is_nil is_number is_pid
+    is_port is_reference is_tuple is_struct is_exception
+  )a
+
+  defp abstract_walk({guard_fn, meta, args})
+       when guard_fn in @guard_functions and is_list(args) do
+    {:__guard__, meta, Enum.map(args, &abstract_walk/1)}
+  end
 
   defp abstract_walk({:%, meta, [struct_name, {:%{}, map_meta, fields}]})
        when is_list(fields) do
