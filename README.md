@@ -116,11 +116,10 @@ Create `.ex_dna.exs` in your project root:
 | — | `--max-clones` | — | Clone budget (exit 1 only above this) |
 | — | `--format` | `console` | `console`, `json`, `html`, or `sarif` |
 
-**Default ignored attributes:** `moduledoc`, `doc`, `typedoc`, `type`, `typep`,
-`opaque`, `spec`, `callback`, `macrocallback`, `impl`, `behaviour`,
-`optional_callbacks`, `deprecated`, `derive`, `enforce_keys`,
-`before_compile`, `after_compile`, `after_verify`, `compile`, `dialyzer`,
-`external_resource`, `on_load`, `on_definition`, `vsn`, `no_clone`.
+**Default ignored attributes:** all of Elixir's
+[reserved attributes](https://hexdocs.pm/elixir/Module.html#reserved_attributes/0)
+(`moduledoc`, `doc`, `spec`, `type`, `impl`, `behaviour`, `derive`, etc.)
+plus `no_clone`.
 
 Custom module attributes like `@extensions`, `@timeout`, or `@fields` **are**
 fingerprinted and will be reported as duplicates when they appear with the

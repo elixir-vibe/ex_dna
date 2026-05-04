@@ -100,40 +100,25 @@ defmodule ExDNA.Reporter.HTML do
     |> String.replace("\"", "&quot;")
   end
 
-  defp highlight(code) do
-    code
-    |> escape()
-    |> highlight_comments()
-    |> highlight_strings()
-    |> highlight_atoms()
-    |> highlight_keywords()
-    |> highlight_module_names()
-  end
+  if Code.ensure_loaded?(Makeup.Lexers.ElixirLexer) do
+    alias Makeup.Styles.HTML.StyleMap
 
-  defp highlight_comments(code) do
-    Regex.replace(~r/(#[^\n]*)/, code, ~s(<span class="cm">\\1</span>))
-  end
+    defp highlight(code) do
+      Makeup.highlight_inner_html(code, lexer: Makeup.Lexers.ElixirLexer)
+    end
 
-  defp highlight_strings(code) do
-    Regex.replace(~r/(&quot;(?:[^&]|&(?!quot;))*&quot;)/, code, ~s(<span class="st">\\1</span>))
-  end
+    defp makeup_css do
+      light = Makeup.stylesheet(StyleMap.default_style(), "snippet")
+      dark = Makeup.stylesheet(StyleMap.one_dark_style(), "snippet")
 
-  defp highlight_atoms(code) do
-    Regex.replace(~r/(:[\w?!]+)/, code, ~s(<span class="at">\\1</span>))
-  end
-
-  @keywords ~w(def defp defmodule defmacro defmacrop defstruct defprotocol defimpl
-               do end if else cond case when fn with for unless raise
-               try catch rescue after import use alias require
-               and or not in true false nil)
-
-  defp highlight_keywords(code) do
-    pattern = @keywords |> Enum.join("|") |> then(&"\\b(#{&1})\\b")
-    Regex.replace(Regex.compile!(pattern), code, ~s(<span class="kw">\\1</span>))
-  end
-
-  defp highlight_module_names(code) do
-    Regex.replace(~r/\b([A-Z]\w+)/, code, ~s(<span class="mn">\\1</span>))
+      """
+      @media(prefers-color-scheme:light){#{light}}
+      @media(prefers-color-scheme:dark){#{dark}}
+      """
+    end
+  else
+    defp highlight(code), do: escape(code)
+    defp makeup_css, do: ""
   end
 
   defp css do
@@ -181,11 +166,8 @@ defmodule ExDNA.Reporter.HTML do
     .snippet-label{font-size:.7rem;color:var(--text-dim);text-transform:uppercase;margin-bottom:4px}
     pre{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.75rem 1rem;overflow-x:auto;font-size:.8rem;line-height:1.5}
     code{font-family:'SF Mono',Monaco,Consolas,'Liberation Mono',monospace}
-    .kw{color:var(--accent);font-weight:600}
-    .st{color:var(--green)}
-    .at{color:var(--blue)}
-    .cm{color:var(--text-dim);font-style:italic}
-    .mn{color:var(--yellow)}
+    #{makeup_css()}
+    .snippet .unselectable{display:none}
     .suggestion{border-top:1px solid var(--border);margin-top:.75rem;padding-top:.75rem}
     .suggestion-header{color:var(--green);font-weight:600;margin-bottom:.25rem}
     .suggestion-sig{font-size:.85rem;display:block;margin-bottom:.5rem;color:var(--green)}
