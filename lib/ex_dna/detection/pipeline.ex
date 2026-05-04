@@ -49,7 +49,8 @@ defmodule ExDNA.Detection.Pipeline do
       literal_mode: config.literal_mode,
       normalize_pipes: config.normalize_pipes,
       excluded_macros: config.excluded_macros,
-      ignored_attributes: config.ignored_attributes
+      ignored_attributes: config.ignored_attributes,
+      max_window_size: config.max_window_size
     )
   end
 

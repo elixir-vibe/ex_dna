@@ -12,22 +12,21 @@ defmodule ExDNA.Detection.Fuzzy do
   alias ExDNA.AST.{EditDistance, Normalizer}
   alias ExDNA.Detection.Clone
 
-  # Only compare fragments within ±30% mass of each other
-  @mass_tolerance 0.3
   # Minimum Jaccard overlap to proceed to expensive edit distance.
   # 0.3 balances recall (lower catches more) vs precision (higher = fewer false positives).
   # Empirically tuned on Phoenix, Ecto, Livebook, Ash, Plausible.
   @jaccard_threshold 0.3
-  # Skip sub-hashes shared by 100+ fragments — these are structural noise
-  # (e.g. common def/fn patterns) that would generate too many candidate pairs.
-  # Fragments exceeding this are sampled (largest mass first) rather than dropped.
-  @max_posting_list 100
 
   @doc """
   Find Type-III clones from a list of fragments at the given similarity threshold.
   """
-  @spec detect([map()], float(), MapSet.t()) :: [Clone.t()]
-  def detect(fragments, min_similarity, exact_hashes) do
+  @type fuzzy_opts :: [mass_tolerance: float(), max_posting_list: pos_integer()]
+
+  @spec detect([map()], float(), MapSet.t(), fuzzy_opts()) :: [Clone.t()]
+  def detect(fragments, min_similarity, exact_hashes, opts \\ []) do
+    mass_tolerance = Keyword.get(opts, :mass_tolerance, 0.3)
+    max_posting_list = Keyword.get(opts, :max_posting_list, 100)
+
     candidates =
       fragments
       |> Enum.reject(fn f -> MapSet.member?(exact_hashes, f.hash) end)
@@ -36,7 +35,7 @@ defmodule ExDNA.Detection.Fuzzy do
 
     by_idx = Map.new(candidates, fn {frag, idx} -> {idx, frag} end)
 
-    pairs = build_candidate_pairs(candidates, by_idx)
+    pairs = build_candidate_pairs(candidates, by_idx, mass_tolerance, max_posting_list)
 
     needed_indices =
       pairs
@@ -54,7 +53,7 @@ defmodule ExDNA.Detection.Fuzzy do
     |> Enum.map(&pair_to_clone/1)
   end
 
-  defp build_candidate_pairs(indexed, by_idx) do
+  defp build_candidate_pairs(indexed, by_idx, mass_tolerance, max_posting_list) do
     inverted =
       Enum.reduce(indexed, %{}, fn {frag, idx}, acc ->
         Enum.reduce(frag.sub_hashes, acc, fn h, a ->
@@ -63,21 +62,27 @@ defmodule ExDNA.Detection.Fuzzy do
       end)
 
     Enum.reduce(inverted, MapSet.new(), fn {_hash, indices}, pairs ->
-      pairs_from_posting(indices, pairs, by_idx)
+      pairs_from_posting(indices, pairs, by_idx, mass_tolerance, max_posting_list)
     end)
     |> MapSet.to_list()
   end
 
-  defp pairs_from_posting(indices, pairs, by_idx) when length(indices) > @max_posting_list do
-    # Candidates are pre-sorted by mass descending, so indices preserve that order
-    pairs_from_posting(Enum.take(indices, @max_posting_list), pairs, by_idx)
+  defp pairs_from_posting(indices, pairs, by_idx, mass_tolerance, max_posting_list)
+       when length(indices) > max_posting_list do
+    pairs_from_posting(
+      Enum.take(indices, max_posting_list),
+      pairs,
+      by_idx,
+      mass_tolerance,
+      max_posting_list
+    )
   end
 
-  defp pairs_from_posting(indices, pairs, by_idx) do
+  defp pairs_from_posting(indices, pairs, by_idx, mass_tolerance, _max_posting_list) do
     for i <- indices,
         j <- indices,
         i < j,
-        mass_compatible?(by_idx[i], by_idx[j]),
+        mass_compatible?(by_idx[i], by_idx[j], mass_tolerance),
         not same_location?(by_idx[i], by_idx[j]),
         jaccard_compatible?(by_idx[i], by_idx[j]),
         reduce: pairs do
@@ -98,9 +103,9 @@ defmodule ExDNA.Detection.Fuzzy do
     end
   end
 
-  defp mass_compatible?(a, b) do
+  defp mass_compatible?(a, b, mass_tolerance) do
     ratio = min(a.mass, b.mass) / max(a.mass, b.mass)
-    ratio >= 1.0 - @mass_tolerance
+    ratio >= 1.0 - mass_tolerance
   end
 
   defp same_location?(a, b) do
