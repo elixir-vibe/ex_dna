@@ -52,7 +52,7 @@ macro, or a behaviour callback.
 
 ```elixir
 def deps do
-  [{:ex_dna, "~> 1.3", only: [:dev, :test], runtime: false}]
+  [{:ex_dna, "~> 1.5", only: [:dev, :test], runtime: false}]
 end
 ```
 

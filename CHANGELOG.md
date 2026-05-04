@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 ### New
 
@@ -34,6 +34,31 @@
   `Module.reserved_attributes/0` instead of a hardcoded list. Picks up
   5 previously missing attributes and stays current with future Elixir
   versions automatically.
+
+### Performance
+
+- **Fused normalizer** — metadata stripping, boolean canonicalization, sigil
+  expansion, pipe normalization, and variable renaming run in a single AST
+  walk instead of 4 separate traversals. Ash (572 files) ~14% faster.
+
+Benchmarked on real-world projects with full Type-I/II/III detection
+(`literal_mode: :abstract, min_similarity: 0.85, normalize_pipes: true`):
+
+| Project | Files | Clones | Time |
+|---------|-------|--------|------|
+| Broadway | 22 | 1 | 45ms |
+| Nx | 42 | 12 | 674ms |
+| Nerves | 50 | 2 | 172ms |
+| Ecto | 56 | 19 | 525ms |
+| Commanded | 63 | 8 | 147ms |
+| Oban | 66 | 16 | 193ms |
+| Phoenix | 74 | 14 | 607ms |
+| Elixir stdlib | 105 | 84 | 1.6s |
+| Surface | 109 | 31 | 513ms |
+| Absinthe | 263 | 63 | 590ms |
+| Livebook | 265 | 62 | 2.1s |
+| Plausible | 465 | 80 | 2.4s |
+| Ash | 572 | 535 | 5.8s |
 
 ## 1.4.3
 
