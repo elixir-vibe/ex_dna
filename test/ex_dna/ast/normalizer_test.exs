@@ -150,9 +150,39 @@ defmodule ExDNA.AST.NormalizerTest do
       refute norm1 == norm2
     end
 
-    test "abstracts is_* calls even outside guards" do
+    test "does not abstract guard calls outside when clauses" do
       ast1 = Code.string_to_quoted!("if is_binary(x), do: x")
       ast2 = Code.string_to_quoted!("if is_integer(x), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)
+
+      refute norm1 == norm2
+    end
+
+    test "abstracts custom defguard calls in when clauses" do
+      ast1 = Code.string_to_quoted!("def foo(x) when my_guard(x), do: x")
+      ast2 = Code.string_to_quoted!("def foo(x) when other_guard(x), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)
+
+      assert norm1 == norm2
+    end
+
+    test "abstracts remote guard calls in when clauses" do
+      ast1 = Code.string_to_quoted!("def foo(x) when Integer.is_even(x), do: x")
+      ast2 = Code.string_to_quoted!("def foo(x) when Integer.is_odd(x), do: x")
+
+      norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
+      norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)
+
+      assert norm1 == norm2
+    end
+
+    test "abstracts compound guards with boolean operators" do
+      ast1 = Code.string_to_quoted!("def foo(x, y) when is_binary(x) or is_list(y), do: x")
+      ast2 = Code.string_to_quoted!("def foo(x, y) when is_atom(x) or is_tuple(y), do: x")
 
       norm1 = Normalizer.normalize(ast1, literal_mode: :abstract)
       norm2 = Normalizer.normalize(ast2, literal_mode: :abstract)

@@ -15,10 +15,11 @@ defmodule ExDNA.AST.Normalizer do
      type-tagged placeholders to detect Type-II clones.
   4. **Map/struct field sorting** (abstract mode) — sorts key-value pairs
      so that `%{b: 1, a: 2}` and `%{a: 2, b: 1}` produce the same hash.
-  5. **Guard abstraction** (abstract mode) — replaces guard type-check
-     function names (`is_binary`, `is_atom`, …) with a `:__guard__`
-     placeholder so that `when is_binary(x)` and `when is_atom(x)` produce
-     the same hash.
+  5. **Guard abstraction** (abstract mode) — in `when` clauses, replaces
+     all function/macro call names with a `:__guard__` placeholder so that
+     `when is_binary(x)` and `when is_atom(x)` produce the same hash.
+     Covers all Kernel guards, Erlang BIF guards, `defguard` macros,
+     and library guards like `Integer.is_even/1`.
   """
 
   alias ExDNA.AST.PipeNormalizer
@@ -99,15 +100,8 @@ defmodule ExDNA.AST.Normalizer do
   defp maybe_abstract_literals(ast, :keep), do: ast
   defp maybe_abstract_literals(ast, :abstract), do: abstract_walk(ast)
 
-  @guard_functions ~w(
-    is_atom is_binary is_bitstring is_boolean is_float is_function
-    is_integer is_list is_map is_map_key is_nil is_number is_pid
-    is_port is_reference is_tuple is_struct is_exception
-  )a
-
-  defp abstract_walk({guard_fn, meta, args})
-       when guard_fn in @guard_functions and is_list(args) do
-    {:__guard__, meta, Enum.map(args, &abstract_walk/1)}
+  defp abstract_walk({:when, meta, [pattern, guard]}) do
+    {:when, meta, [abstract_walk(pattern), abstract_guard(guard)]}
   end
 
   defp abstract_walk({:%, meta, [struct_name, {:%{}, map_meta, fields}]})
@@ -140,6 +134,36 @@ defmodule ExDNA.AST.Normalizer do
   defp abstract_walk(float) when is_float(float), do: :__float__
   defp abstract_walk(str) when is_binary(str), do: :__string__
   defp abstract_walk(atom) when is_atom(atom), do: atom
+
+  # Guard-position abstraction: replaces all call names with :__guard__
+  # so that guards differing only in predicate (`is_binary` vs `is_atom`,
+  # `Integer.is_even` vs `Integer.is_odd`, custom defguards, etc.) hash
+  # identically.
+  defp abstract_guard({:and, meta, [left, right]}) do
+    {:and, meta, [abstract_guard(left), abstract_guard(right)]}
+  end
+
+  defp abstract_guard({:or, meta, [left, right]}) do
+    {:or, meta, [abstract_guard(left), abstract_guard(right)]}
+  end
+
+  defp abstract_guard({:not, meta, [arg]}) do
+    {:not, meta, [abstract_guard(arg)]}
+  end
+
+  defp abstract_guard({:when, meta, [left, right]}) do
+    {:when, meta, [abstract_guard(left), abstract_guard(right)]}
+  end
+
+  defp abstract_guard({{:., meta, [mod, _fun]}, call_meta, args}) do
+    {{:., meta, [abstract_walk(mod), :__guard__]}, call_meta, Enum.map(args, &abstract_walk/1)}
+  end
+
+  defp abstract_guard({name, meta, args}) when is_atom(name) and is_list(args) do
+    {:__guard__, meta, Enum.map(args, &abstract_walk/1)}
+  end
+
+  defp abstract_guard(other), do: abstract_walk(other)
 
   defp walk_map_fields(fields) do
     if all_kv_pairs?(fields) do
