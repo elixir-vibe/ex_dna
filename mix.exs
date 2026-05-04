@@ -36,7 +36,7 @@ defmodule ExDNA.MixProject do
       {:gen_lsp, "~> 0.11", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", optional: true},
-      {:ex_slop, "~> 0.1", only: [:dev, :test], runtime: false},
+      {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
