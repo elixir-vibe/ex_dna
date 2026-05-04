@@ -21,6 +21,25 @@ defmodule ExDNA.Config do
       }
 
   The file is evaluated with `Code.eval_file/1` and must return a map.
+
+  ## Advanced tuning
+
+    * `:max_window_size` — maximum number of consecutive sibling functions
+      combined into a single fingerprint for cross-module clone detection.
+      Higher values catch clones spanning more adjacent functions at the cost
+      of more fragments to compare. Must be ≥ 2. Default: `4`.
+
+    * `:mass_tolerance` — maximum relative size difference allowed between
+      two fragments for Type-III (fuzzy) comparison. A value of `0.3` means
+      fragments are compared only if the smaller is at least 70% the size of
+      the larger. Raise toward `0.5` to catch clones between thin wrappers
+      and fat implementations. Must be in `(0.0, 1.0]`. Default: `0.3`.
+
+    * `:max_posting_list` — maximum number of fragments sharing the same
+      structural sub-hash that are considered as Type-III candidates. Caps
+      the quadratic blowup from very common patterns. Raise for large
+      monorepos with many structurally similar modules at the expense of
+      detection time. Must be ≥ 1. Default: `100`.
   """
 
   @defaults %{
@@ -28,6 +47,9 @@ defmodule ExDNA.Config do
     min_mass: 30,
     min_occurrences: 2,
     min_similarity: 1.0,
+    max_window_size: 4,
+    mass_tolerance: 0.3,
+    max_posting_list: 100,
     ignore: [],
     reporters: [ExDNA.Reporter.Console],
     literal_mode: :keep,
@@ -71,6 +93,9 @@ defmodule ExDNA.Config do
           min_mass: pos_integer(),
           min_occurrences: pos_integer(),
           min_similarity: float(),
+          max_window_size: pos_integer(),
+          mass_tolerance: float(),
+          max_posting_list: pos_integer(),
           ignore: [String.t()],
           reporters: [module()],
           literal_mode: literal_mode(),
@@ -98,24 +123,49 @@ defmodule ExDNA.Config do
   def default(key), do: Map.fetch!(@defaults, key)
 
   defp validate!(config) do
-    unless is_integer(config.min_mass) and config.min_mass > 0 do
-      raise ArgumentError, "min_mass must be a positive integer, got: #{inspect(config.min_mass)}"
-    end
-
-    unless is_integer(config.min_occurrences) and config.min_occurrences > 1 do
-      raise ArgumentError,
-            "min_occurrences must be an integer greater than 1, got: #{inspect(config.min_occurrences)}"
-    end
-
-    unless is_float(config.min_similarity) and config.min_similarity >= 0.0 and
-             config.min_similarity <= 1.0 do
-      raise ArgumentError,
-            "min_similarity must be a float between 0.0 and 1.0, got: #{inspect(config.min_similarity)}"
-    end
+    validate_pos_int!(:min_mass, config.min_mass)
+    validate_int_gt!(:min_occurrences, config.min_occurrences, 1)
+    validate_float_range!(:min_similarity, config.min_similarity, 0.0, 1.0)
+    validate_int_gte!(:max_window_size, config.max_window_size, 2)
+    validate_float_range_exclusive_min!(:mass_tolerance, config.mass_tolerance, 0.0, 1.0)
+    validate_pos_int!(:max_posting_list, config.max_posting_list)
 
     unless config.literal_mode in [:keep, :abstract] do
       raise ArgumentError,
             "literal_mode must be :keep or :abstract, got: #{inspect(config.literal_mode)}"
+    end
+  end
+
+  defp validate_pos_int!(name, value) do
+    unless is_integer(value) and value > 0 do
+      raise ArgumentError, "#{name} must be a positive integer, got: #{inspect(value)}"
+    end
+  end
+
+  defp validate_int_gt!(name, value, min) do
+    unless is_integer(value) and value > min do
+      raise ArgumentError,
+            "#{name} must be an integer greater than #{min}, got: #{inspect(value)}"
+    end
+  end
+
+  defp validate_int_gte!(name, value, min) do
+    unless is_integer(value) and value >= min do
+      raise ArgumentError, "#{name} must be an integer >= #{min}, got: #{inspect(value)}"
+    end
+  end
+
+  defp validate_float_range!(name, value, min, max) do
+    unless is_float(value) and value >= min and value <= max do
+      raise ArgumentError,
+            "#{name} must be a float between #{min} and #{max}, got: #{inspect(value)}"
+    end
+  end
+
+  defp validate_float_range_exclusive_min!(name, value, min, max) do
+    unless is_float(value) and value > min and value <= max do
+      raise ArgumentError,
+            "#{name} must be a float between #{min} (exclusive) and #{max}, got: #{inspect(value)}"
     end
   end
 

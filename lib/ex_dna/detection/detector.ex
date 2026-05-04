@@ -107,7 +107,10 @@ defmodule ExDNA.Detection.Detector do
 
     fragments
     |> Enum.filter(fn f -> f.mass >= min_fuzzy_mass end)
-    |> Fuzzy.detect(config.min_similarity, exact_hashes)
+    |> Fuzzy.detect(config.min_similarity, exact_hashes,
+      mass_tolerance: config.mass_tolerance,
+      max_posting_list: config.max_posting_list
+    )
     |> Enum.reject(fn clone ->
       Enum.any?(clone.fragments, fn f -> MapSet.member?(exact_locations, {f.file, f.line}) end)
     end)

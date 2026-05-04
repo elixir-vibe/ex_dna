@@ -14,6 +14,13 @@ defmodule Mix.Tasks.ExDna do
     * `--min-occurrences` — minimum number of code occurrences to report a clone (default: 2)
     * `--min-similarity` — similarity threshold 0.0–1.0 (default: 1.0).
       Values below 1.0 enable Type-III near-miss detection.
+    * `--max-window-size` — max consecutive sibling functions combined into
+      a single fingerprint (default: 4). Raise to catch larger cross-module clones.
+    * `--mass-tolerance` — max relative size difference for Type-III comparison,
+      0.0–1.0 (default: 0.3). Raise to compare fragments of more different sizes.
+    * `--max-posting-list` — max fragments sharing a sub-hash considered as
+      Type-III candidates (default: 100). Raise for large monorepos at the
+      expense of detection time.
     * `--literal-mode` — `keep` (Type-I only) or `abstract` (also Type-II). Default: `keep`
     * `--normalize-pipes` — treat `x |> f()` the same as `f(x)`. Default: false
     * `--exclude-macro` — macro name to skip during analysis (repeatable).
@@ -41,6 +48,9 @@ defmodule Mix.Tasks.ExDna do
           min_mass: :integer,
           min_occurrences: :integer,
           min_similarity: :float,
+          max_window_size: :integer,
+          mass_tolerance: :float,
+          max_posting_list: :integer,
           literal_mode: :string,
           normalize_pipes: :boolean,
           exclude_macro: :keep,
@@ -124,6 +134,9 @@ defmodule Mix.Tasks.ExDna do
     |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
     |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
     |> Options.maybe_put(:min_similarity, Keyword.get(opts, :min_similarity))
+    |> Options.maybe_put(:max_window_size, Keyword.get(opts, :max_window_size))
+    |> Options.maybe_put(:mass_tolerance, Keyword.get(opts, :mass_tolerance))
+    |> Options.maybe_put(:max_posting_list, Keyword.get(opts, :max_posting_list))
     |> Options.maybe_put(:excluded_macros, excluded_macros)
     |> Options.maybe_put(:ignored_attributes, ignored_attributes)
   end

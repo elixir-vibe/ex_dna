@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### New
+
+- **Configurable fuzzy detection tuning** — Three previously hardcoded
+  constants are now available as config options and CLI flags:
+  - `max_window_size` (`--max-window-size`, default: 4) — max consecutive
+    sibling functions combined into a single fingerprint for cross-module
+    clone detection. Raise to catch clones spanning more adjacent functions.
+  - `mass_tolerance` (`--mass-tolerance`, default: 0.3) — max relative size
+    difference for Type-III comparison. Raise toward 0.5 to catch clones
+    between thin wrappers and fat implementations.
+  - `max_posting_list` (`--max-posting-list`, default: 100) — cap on
+    fragments sharing a sub-hash considered as Type-III candidates. Raise
+    for large monorepos with many structurally similar modules.
+
 ## 1.4.3
 
 ### Fixed
