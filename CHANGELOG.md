@@ -4,23 +4,36 @@
 
 ### New
 
-- **Guard-aware normalization** — in `:abstract` mode, guard type-check
-  functions (`is_binary`, `is_atom`, `is_integer`, …) are replaced with a
-  placeholder so that functions differing only in guard predicates are
-  detected as clones.
+- **Guard-aware normalization** — in `:abstract` mode, all calls inside
+  `when` guard clauses are abstracted so that functions differing only in
+  guard predicates are detected as clones. Covers Kernel guards, Erlang
+  BIFs, `defguard` macros, and library guards like `Integer.is_even/1`.
+- **Boolean operator canonicalization** — `&&`/`||`/`!` are rewritten to
+  `and`/`or`/`not` so stylistic choice between short-circuit and keyword
+  operators doesn’t prevent clone matching.
+- **Sigil `~w` expansion** — `~w(foo bar)a` is expanded to `[:foo, :bar]`
+  so sigil word-lists match their literal equivalents.
 - **MinHash-accelerated fuzzy detection** — large posting lists (>50
   entries) now use MinHash signatures for O(k) approximate Jaccard instead
   of O(|A|+|B|) exact set operations. Removes the hard posting-list cap,
   improving recall for large monorepos without sacrificing precision.
-  Plausible (465 files) full I/II/III detection ≈ 9% faster.
-- **Configurable fuzzy detection tuning** — previously hardcoded constants
-  are now available as config options and CLI flags:
+- **HTML report syntax highlighting via Makeup** — proper Elixir
+  tokenization with dark/light theme support, replacing the regex-based
+  highlighter.
+- **Configurable detection tuning** — previously hardcoded constants are
+  now available as config options and CLI flags:
   - `max_window_size` (`--max-window-size`, default: 4) — max consecutive
     sibling functions combined into a single fingerprint for cross-module
-    clone detection. Raise to catch clones spanning more adjacent functions.
+    clone detection.
   - `mass_tolerance` (`--mass-tolerance`, default: 0.3) — max relative size
-    difference for Type-III comparison. Raise toward 0.5 to catch clones
-    between thin wrappers and fat implementations.
+    difference for Type-III comparison.
+
+### Changed
+
+- **`ignored_attributes` default** — derived from
+  `Module.reserved_attributes/0` instead of a hardcoded list. Picks up
+  5 previously missing attributes and stays current with future Elixir
+  versions automatically.
 
 ## 1.4.3
 

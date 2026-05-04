@@ -29,6 +29,10 @@ macro, or a behaviour callback.
 - **Pipe normalization** — `x |> f()` and `f(x)` match as the same code
 - **Field order normalization** — `%User{name: x, age: y}` and
   `%User{age: y, name: x}` match in Type-II mode
+- **Guard normalization** — `when is_binary(x)` and `when is_atom(x)` match
+  in Type-II mode (covers Kernel guards, `defguard`, library guards)
+- **Boolean operator normalization** — `&&`/`||`/`!` match `and`/`or`/`not`
+- **Sigil expansion** — `~w(foo bar)a` matches `[:foo, :bar]`
 - **Cross-file grouping** — `actions/ ↔ tools/ (6 clones, 298 nodes)`
   instead of listing each pair
 - **`@no_clone` annotation** — suppress known/intentional duplicates
