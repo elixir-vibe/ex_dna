@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.1
+
+### Fixed
+
+- **Crash in extraction suggestions with differing alias components** —
+  anti-unification now treats aliases as atomic AST nodes, preventing invalid
+  `__aliases__` shapes such as `Pricing.{arg}.lookup(...)` from reaching
+  `Code.Formatter`. (#8)
+
 ## 1.5.0
 
 ### New
