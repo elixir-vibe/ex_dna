@@ -34,6 +34,8 @@ defmodule ExDNA.AST.Normalizer do
      and library guards like `Integer.is_even/1`.
   """
 
+  alias ExDNA.AST.Pipe
+
   @type option :: {:literal_mode, :keep | :abstract} | {:normalize_pipes, boolean()}
 
   @doc """
@@ -100,7 +102,7 @@ defmodule ExDNA.AST.Normalizer do
   defp fused_walk({:|>, _meta, [left, right]}, true = pipes, env) do
     {left_n, env} = fused_walk(left, pipes, env)
     {right_n, env} = fused_walk(right, pipes, env)
-    {inject_first_arg(right_n, left_n), env}
+    {Pipe.inject_first_arg(right_n, left_n), env}
   end
 
   # Variable node
@@ -154,20 +156,6 @@ defmodule ExDNA.AST.Normalizer do
       end)
 
     {Enum.reverse(reversed), env}
-  end
-
-  # --- Pipe injection (from PipeNormalizer, inlined for the fused walk) ---
-
-  defp inject_first_arg({call, meta, args}, first_arg) when is_list(args) do
-    {call, meta, [first_arg | args]}
-  end
-
-  defp inject_first_arg({call, meta, nil}, first_arg) do
-    {call, meta, [first_arg]}
-  end
-
-  defp inject_first_arg(other, first_arg) do
-    {other, [], [first_arg]}
   end
 
   # --- Sigil expansion ---

@@ -8,6 +8,8 @@ defmodule ExDNA.AST.PipeNormalizer do
   don't prevent clone detection.
   """
 
+  alias ExDNA.AST.Pipe
+
   @doc """
   Convert all pipe expressions in an AST to nested function calls.
   """
@@ -17,20 +19,8 @@ defmodule ExDNA.AST.PipeNormalizer do
   end
 
   defp flatten_pipe({:|>, _meta, [left, right]}) do
-    inject_first_arg(right, left)
+    Pipe.inject_first_arg(right, left)
   end
 
   defp flatten_pipe(other), do: other
-
-  defp inject_first_arg({call, meta, args}, first_arg) when is_list(args) do
-    {call, meta, [first_arg | args]}
-  end
-
-  defp inject_first_arg({call, meta, nil}, first_arg) do
-    {call, meta, [first_arg]}
-  end
-
-  defp inject_first_arg(other, first_arg) do
-    {other, [], [first_arg]}
-  end
 end
