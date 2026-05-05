@@ -46,6 +46,18 @@ defmodule ExDNA.AST.AntiUnifier do
     make_hole({name_a, [], ctx_a}, {name_b, [], ctx_b}, state)
   end
 
+  defp do_anti_unify({:__aliases__, meta_a, parts}, {:__aliases__, meta_b, parts}, state) do
+    {{:__aliases__, merge_meta(meta_a, meta_b), parts}, state}
+  end
+
+  defp do_anti_unify(
+         {:__aliases__, _meta_a, _parts_a} = alias_a,
+         {:__aliases__, _meta_b, _parts_b} = alias_b,
+         state
+       ) do
+    make_hole(alias_a, alias_b, state)
+  end
+
   # Call nodes: {form, meta, args} where args is a list
   defp do_anti_unify({form_a, meta_a, args_a}, {form_b, meta_b, args_b}, state)
        when is_list(args_a) and is_list(args_b) do

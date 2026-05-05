@@ -51,6 +51,17 @@ defmodule ExDNA.AST.AntiUnifierTest do
       assert pattern_str =~ "String.duplicate"
     end
 
+    test "different alias components become one whole-alias hole" do
+      ast_a = quote do: Pricing.Anthropic.lookup(provider, model, usage)
+      ast_b = quote do: Pricing.OpenAI.lookup(provider, model, usage)
+
+      {pattern, holes} = AntiUnifier.anti_unify(ast_a, ast_b)
+
+      assert [hole] = holes
+      assert hole.values == [quote(do: Pricing.Anthropic), quote(do: Pricing.OpenAI)]
+      assert Macro.to_string(pattern) =~ "hole0.lookup"
+    end
+
     test "completely different trees produce a single hole" do
       ast_a = quote do: foo(1, 2, 3)
       ast_b = quote do: bar(1)

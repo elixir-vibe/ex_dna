@@ -126,6 +126,23 @@ defmodule ExDNA.Refactor.SuggestionTest do
       assert Suggestion.suggest(clone) == nil
     end
 
+    test "skips extraction suggestion when remote module alias components differ" do
+      ast_a = quote do: Pricing.Anthropic.lookup(provider, model, usage)
+      ast_b = quote do: Pricing.OpenAI.lookup(provider, model, usage)
+
+      clone = %Clone{
+        type: :type_iii,
+        hash: "x",
+        mass: 10,
+        fragments: [
+          %{file: "a.ex", line: 1, ast: ast_a, mass: 10},
+          %{file: "b.ex", line: 1, ast: ast_b, mass: 10}
+        ]
+      }
+
+      assert Suggestion.suggest(clone) == nil
+    end
+
     test "names extracted function based on original def" do
       ast =
         quote do
