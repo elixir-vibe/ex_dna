@@ -137,7 +137,9 @@ if Code.ensure_loaded?(Credo.Check) do
       file_ast_pairs =
         source_files
         |> Enum.filter(&(&1.status == :valid))
-        |> Enum.map(fn sf -> {sf.filename, Credo.SourceFile.ast(sf)} end)
+        |> Enum.map(fn sf ->
+          {sf.filename, Credo.SourceFile.ast(sf), Credo.SourceFile.source(sf)}
+        end)
 
       config
       |> Detector.run(file_ast_pairs)

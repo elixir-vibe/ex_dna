@@ -67,10 +67,10 @@ defmodule ExDNA.MixProject do
       ci: [
         "compile --warnings-as-errors",
         "format --check-formatted",
-        "credo --strict",
-        "dialyzer",
-        "test",
-        "ex_dna"
+        "cmd mix credo --strict",
+        "cmd mix test",
+        "cmd mix dialyzer",
+        "cmd mix ex_dna"
       ]
     ]
   end

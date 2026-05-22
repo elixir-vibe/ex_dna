@@ -26,7 +26,7 @@ defmodule ExDNA.Detection.Pipeline do
   def parse_and_fingerprint(file, config) do
     with {:ok, source} <- File.read(file),
          {:ok, ast} <- parse_with_timeout(source, file, config.parse_timeout) do
-      fingerprint_ast(ast, file, config)
+      fingerprint_ast(ast, file, config, source)
     else
       _ -> []
     end
@@ -36,22 +36,34 @@ defmodule ExDNA.Detection.Pipeline do
   Fingerprint a pre-parsed AST for the given file path.
 
   Use this when the AST is already available (e.g. from Credo's ETS cache)
-  to avoid re-reading and re-parsing from disk.
+  to avoid re-parsing.
   """
   @spec fingerprint_ast(Macro.t(), String.t(), Config.t()) :: [Fingerprint.fragment()]
   def fingerprint_ast(ast, file, config) do
-    ast =
-      ast
-      |> Annotator.strip_no_clone()
-      |> ClauseGrouper.group()
+    source = if File.regular?(file), do: File.read!(file), else: ""
+    fingerprint_ast(ast, file, config, source)
+  end
 
-    Fingerprint.fragments(ast, file, config.min_mass,
-      literal_mode: config.literal_mode,
-      normalize_pipes: config.normalize_pipes,
-      excluded_macros: config.excluded_macros,
-      ignored_attributes: config.ignored_attributes,
-      max_window_size: config.max_window_size
-    )
+  @spec fingerprint_ast(Macro.t(), String.t(), Config.t(), String.t()) :: [Fingerprint.fragment()]
+  def fingerprint_ast(ast, file, config, source) do
+    ignored_lines = Annotator.suppressed_lines(source)
+
+    if ignored_lines == :all do
+      []
+    else
+      ast =
+        ast
+        |> Annotator.strip_suppressed(ignored_lines)
+        |> ClauseGrouper.group()
+
+      Fingerprint.fragments(ast, file, config.min_mass,
+        literal_mode: config.literal_mode,
+        normalize_pipes: config.normalize_pipes,
+        excluded_macros: config.excluded_macros,
+        ignored_attributes: config.ignored_attributes,
+        max_window_size: config.max_window_size
+      )
+    end
   end
 
   @spec find_clones([Fingerprint.fragment()], Clone.clone_type()) :: [Clone.t()]

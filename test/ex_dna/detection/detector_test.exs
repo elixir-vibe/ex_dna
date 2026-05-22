@@ -363,7 +363,7 @@ defmodule ExDNA.Detection.DetectorTest do
       assert is_list(clones)
     end
 
-    test "skips @no_clone annotated defs from detection", %{dir: dir} do
+    test "skips defs targeted by suppression comments", %{dir: dir} do
       write_fixture(dir, "clone_a.ex", """
       defmodule CloneA do
         def process(data) do
@@ -378,7 +378,7 @@ defmodule ExDNA.Detection.DetectorTest do
 
       write_fixture(dir, "clone_b.ex", """
       defmodule CloneB do
-        @no_clone true
+        # ex_dna:disable-for-next-line
         def process(data) do
           data
           |> Enum.map(fn x -> x * 2 end)
@@ -392,7 +392,7 @@ defmodule ExDNA.Detection.DetectorTest do
       config = Config.new(paths: [dir], min_mass: 5, reporters: [])
       {clones, _} = Detector.run(config)
 
-      # The annotated def in CloneB should not produce fragments,
+      # The suppressed def in CloneB should not produce fragments,
       # so no clone pair at the `def process` level should be found.
       process_clones =
         Enum.filter(clones, fn c ->

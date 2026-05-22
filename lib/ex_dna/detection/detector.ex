@@ -35,13 +35,17 @@ defmodule ExDNA.Detection.Detector do
   @doc """
   Run detection on pre-parsed ASTs.
 
-  Accepts a list of `{filename, ast}` tuples (e.g. from Credo's ETS cache)
-  and skips file I/O and parsing entirely.
+  Accepts a list of `{filename, ast}` or `{filename, ast, source}` tuples
+  (e.g. from Credo's ETS cache) and skips parsing entirely.
   """
-  @spec run(Config.t(), [{String.t(), Macro.t()}]) :: {[Clone.t()], non_neg_integer()}
+  @spec run(Config.t(), [{String.t(), Macro.t()} | {String.t(), Macro.t(), String.t()}]) ::
+          {[Clone.t()], non_neg_integer()}
   def run(%Config{} = config, file_ast_pairs) when is_list(file_ast_pairs) do
     {run_detection(config, file_ast_pairs),
-     Enum.count(file_ast_pairs, fn {_, ast} -> ast != nil end)}
+     Enum.count(file_ast_pairs, fn
+       {_, ast} -> ast != nil
+       {_, ast, _} -> ast != nil
+     end)}
   end
 
   defp run_detection(config, file_ast_pairs) do
@@ -69,14 +73,14 @@ defmodule ExDNA.Detection.Detector do
     (exact_clones ++ type_iii_clones)
     |> Enum.filter(&(length(&1.fragments) >= config.min_occurrences))
     |> Enum.map(&Pipeline.attach_suggestion/1)
-    |> BehaviourSuggestion.analyze(Map.new(file_ast_pairs))
+    |> BehaviourSuggestion.analyze(ast_map(file_ast_pairs))
     |> Enum.sort_by(& &1.mass, :desc)
   end
 
   defp parse_file(file, config) do
     with {:ok, source} <- File.read(file),
          {:ok, ast} <- Pipeline.parse_with_timeout(source, file, config.parse_timeout) do
-      [{file, ast}]
+      [{file, ast, source}]
     else
       _ -> []
     end
@@ -85,11 +89,21 @@ defmodule ExDNA.Detection.Detector do
   defp fingerprint_pairs(pairs, config) do
     pairs
     |> Task.async_stream(
-      fn {file, ast} -> Pipeline.fingerprint_ast(ast, file, config) end,
+      fn
+        {file, ast} -> Pipeline.fingerprint_ast(ast, file, config)
+        {file, ast, source} -> Pipeline.fingerprint_ast(ast, file, config, source)
+      end,
       max_concurrency: System.schedulers_online(),
       ordered: false
     )
     |> Enum.flat_map(fn {:ok, frags} -> frags end)
+  end
+
+  defp ast_map(file_ast_pairs) do
+    Map.new(file_ast_pairs, fn
+      {file, ast} -> {file, ast}
+      {file, ast, _source} -> {file, ast}
+    end)
   end
 
   defp find_fuzzy_clones(_fragments, _exact_clones, %Config{min_similarity: s}) when s >= 1.0,

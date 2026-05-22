@@ -50,7 +50,7 @@ defmodule ExDNA.Config do
     literal_mode: :keep,
     normalize_pipes: false,
     excluded_macros: [],
-    ignored_attributes: [:no_clone | Map.keys(Module.reserved_attributes())],
+    ignored_attributes: Map.keys(Module.reserved_attributes()),
     parse_timeout: 5_000
   }
 

@@ -35,7 +35,7 @@ macro, or a behaviour callback.
 - **Sigil expansion** — `~w(foo bar)a` matches `[:foo, :bar]`
 - **Cross-file grouping** — `actions/ ↔ tools/ (6 clones, 298 nodes)`
   instead of listing each pair
-- **`@no_clone` annotation** — suppress known/intentional duplicates
+- **Credo-style suppression comments** — suppress known/intentional duplicates
 - **Incremental `Mix.Task.Compiler`** — only re-analyzes changed files
 - **LSP server** — pushes clone diagnostics to your editor alongside
   [Expert](https://github.com/elixir-lang/expert) or ElixirLS
@@ -122,8 +122,7 @@ Create `.ex_dna.exs` in your project root:
 
 **Default ignored attributes:** all of Elixir's
 [reserved attributes](https://hexdocs.pm/elixir/Module.html#reserved_attributes/0)
-(`moduledoc`, `doc`, `spec`, `type`, `impl`, `behaviour`, `derive`, etc.)
-plus `no_clone`.
+(`moduledoc`, `doc`, `spec`, `type`, `impl`, `behaviour`, `derive`, etc.).
 
 Custom module attributes like `@extensions`, `@timeout`, or `@fields` **are**
 fingerprinted and will be reported as duplicates when they appear with the
@@ -131,11 +130,24 @@ same value in multiple modules.
 
 ## Suppressing clones
 
+Use Credo-style comments when a duplicate is intentional:
+
 ```elixir
-@no_clone true
-def validate(params) do
-  # intentional duplication, won't be flagged
+defmodule MyApp.Validator do
+  # ex_dna:disable-for-next-line
+  def validate(params) do
+    # intentional duplication, won't be flagged
+  end
 end
+```
+
+Supported comments:
+
+```elixir
+# ex_dna:disable-for-this-file
+# ex_dna:disable-for-next-line
+# ex_dna:disable-for-previous-line
+# ex_dna:disable-for-lines:3
 ```
 
 ## max_clones / min_occurrences
