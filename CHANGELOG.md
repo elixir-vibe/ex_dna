@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.5.2
+
+### Changed
+
+- **Suppression comments** — replaced the `@no_clone` module attribute with
+  Credo-style comments (`# ex_dna:disable-for-next-line`, file,
+  previous-line, and range variants), avoiding Elixir's unused attribute
+  warning during compilation. (#11)
+
+### Fixed
+
+- **Credo integration suppression** — suppression comments now work when ExDNA
+  runs through Credo's cached ASTs by carrying source text alongside the AST.
+- **CI alias isolation** — `mix ci` now runs Credo, tests, Dialyzer, and ExDNA
+  in separate Mix invocations to avoid application lifecycle conflicts.
+
+### Tooling
+
+- Updated development dependencies and enabled ExSlop's recommended plugin
+  setup plus strict Credo checks.
+
 ## 1.5.1
 
 ### Fixed
