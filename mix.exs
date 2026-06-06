@@ -8,7 +8,7 @@ defmodule ExDNA.MixProject do
     [
       app: :ex_dna,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.19",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       name: "ExDNA",
