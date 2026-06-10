@@ -86,6 +86,7 @@ defmodule ExDNA.Refactor.Suggestion do
       name: func_name,
       params: Enum.map(holes, fn hole -> rename_hole(hole.var) end),
       body: suggestion_body(pattern, holes),
+      occurrence_count: length(frags),
       call_sites: call_sites(frags, ast_a, holes, func_name)
     }
   end

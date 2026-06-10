@@ -41,7 +41,8 @@ defmodule ExDNA.AST.Fingerprint do
       norm_opts: Keyword.take(opts, [:literal_mode, :normalize_pipes, :normalize_variables]),
       excluded: Keyword.get(opts, :excluded_macros, []) |> MapSet.new(),
       ignored_attrs: Keyword.get(opts, :ignored_attributes, []) |> MapSet.new(),
-      max_window_size: Keyword.get(opts, :max_window_size, 4)
+      max_window_size: Keyword.get(opts, :max_window_size, 4),
+      max_module_forms: Keyword.get(opts, :max_module_forms, 200)
     }
 
     {_ast, frags, _sub_hashes} = walk(ast, ctx, [])
@@ -59,7 +60,7 @@ defmodule ExDNA.AST.Fingerprint do
     per_child_subs = Enum.reverse(per_child_subs)
 
     acc =
-      if module_body?(args) do
+      if module_body?(args, ctx) do
         sibling_windows(args, per_child_subs, ctx, acc)
       else
         acc
@@ -143,8 +144,8 @@ defmodule ExDNA.AST.Fingerprint do
 
   # --- Sibling windows ---
 
-  defp module_body?(children) do
-    length(children) <= 30 and
+  defp module_body?(children, ctx) do
+    length(children) <= ctx.max_module_forms and
       Enum.any?(children, fn
         {form, _, _} when form in @module_level_forms -> true
         _ -> false

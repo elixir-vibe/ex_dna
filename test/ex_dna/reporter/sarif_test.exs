@@ -72,6 +72,21 @@ defmodule ExDNA.Reporter.SARIFTest do
     assert length(result["relatedLocations"]) == 1
   end
 
+  test "uses configured output file" do
+    output = "custom_ex_dna.sarif"
+    on_exit(fn -> File.rm(output) end)
+
+    report = %Report{
+      clones: [],
+      stats: %{},
+      config: Config.new(paths: ["lib/"], reporters: [], output_file: output)
+    }
+
+    SARIF.report(report)
+
+    assert File.exists?(output)
+  end
+
   test "renders Type III results with similarity" do
     clone = %Clone{
       type: :type_iii,

@@ -44,14 +44,17 @@ defmodule ExDNA.Config do
     min_occurrences: 2,
     min_similarity: 1.0,
     max_window_size: 4,
+    max_module_forms: 200,
     mass_tolerance: 0.3,
+    min_fuzzy_mass: nil,
     ignore: [],
     reporters: [ExDNA.Reporter.Console],
     literal_mode: :keep,
     normalize_pipes: false,
     excluded_macros: [],
     ignored_attributes: Map.keys(Module.reserved_attributes()),
-    parse_timeout: 5_000
+    parse_timeout: 5_000,
+    output_file: nil
   }
 
   defstruct Map.keys(@defaults)
@@ -63,14 +66,17 @@ defmodule ExDNA.Config do
           min_occurrences: pos_integer(),
           min_similarity: float(),
           max_window_size: pos_integer(),
+          max_module_forms: pos_integer(),
           mass_tolerance: float(),
+          min_fuzzy_mass: pos_integer() | nil,
           ignore: [String.t()],
           reporters: [module()],
           literal_mode: literal_mode(),
           normalize_pipes: boolean(),
           excluded_macros: [atom()],
           ignored_attributes: [atom()],
-          parse_timeout: pos_integer()
+          parse_timeout: pos_integer(),
+          output_file: String.t() | nil
         }
 
   @spec new(keyword()) :: t()
@@ -95,7 +101,9 @@ defmodule ExDNA.Config do
     validate_int_gt!(:min_occurrences, config.min_occurrences, 1)
     validate_float_range!(:min_similarity, config.min_similarity, 0.0, 1.0)
     validate_int_gte!(:max_window_size, config.max_window_size, 2)
+    validate_int_gte!(:max_module_forms, config.max_module_forms, 2)
     validate_float_range_exclusive_min!(:mass_tolerance, config.mass_tolerance, 0.0, 1.0)
+    validate_optional_pos_int!(:min_fuzzy_mass, config.min_fuzzy_mass)
 
     unless config.literal_mode in [:keep, :abstract] do
       raise ArgumentError,
@@ -115,6 +123,10 @@ defmodule ExDNA.Config do
             "#{name} must be an integer greater than #{min}, got: #{inspect(value)}"
     end
   end
+
+  defp validate_optional_pos_int!(_name, nil), do: :ok
+
+  defp validate_optional_pos_int!(name, value), do: validate_pos_int!(name, value)
 
   defp validate_int_gte!(name, value, min) do
     unless is_integer(value) and value >= min do

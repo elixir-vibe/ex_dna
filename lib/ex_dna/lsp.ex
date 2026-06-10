@@ -114,6 +114,15 @@ if Code.ensure_loaded?(GenLSP) do
 
     defp start_analysis(lsp) do
       assigns = GenLSP.LSP.assigns(lsp)
+
+      if Map.get(assigns, :analysis_task) do
+        {:noreply, lsp}
+      else
+        do_start_analysis(lsp, assigns)
+      end
+    end
+
+    defp do_start_analysis(lsp, assigns) do
       previous_clones = Map.get(assigns, :clones, [])
       root_uri = assigns.root_uri
       overrides = Map.get(assigns, :config_overrides, [])

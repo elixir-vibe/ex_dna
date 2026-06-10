@@ -60,6 +60,24 @@ defmodule Mix.Tasks.ExDnaTest do
     end)
   end
 
+  test "raises a Mix error for invalid format" do
+    error =
+      assert_raise Error, fn ->
+        ExDna.run(["--format", "xml"])
+      end
+
+    assert Exception.message(error) =~ "Invalid format"
+  end
+
+  test "raises a Mix error for invalid explain option" do
+    error =
+      assert_raise Error, fn ->
+        Explain.run(["--unknown"])
+      end
+
+    assert Exception.message(error) =~ "Invalid option"
+  end
+
   test "explain accepts a clone index followed by paths", %{dir: dir} do
     write_duplicate_pair(dir)
 

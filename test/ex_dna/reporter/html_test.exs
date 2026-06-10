@@ -58,6 +58,29 @@ defmodule ExDNA.Reporter.HTMLTest do
     assert html =~ "file://"
   end
 
+  test "uses configured output file" do
+    output = "custom_ex_dna_report.html"
+    on_exit(fn -> File.rm(output) end)
+
+    report = %Report{
+      clones: [],
+      stats: %{
+        files_analyzed: 0,
+        total_clones: 0,
+        total_duplicated_lines: 0,
+        type_i_count: 0,
+        type_ii_count: 0,
+        type_iii_count: 0,
+        detection_time_ms: 0
+      },
+      config: Config.new(paths: ["lib/"], reporters: [], output_file: output)
+    }
+
+    HTML.report(report)
+
+    assert File.exists?(output)
+  end
+
   test "renders Type II and Type III badges" do
     make_clone = fn type ->
       %Clone{

@@ -91,15 +91,13 @@ defmodule ExDNA.Detection.Fuzzy do
 
   defp pairs_from_posting(indices, pairs, by_idx, sig_cache, mass_tolerance) do
     if length(indices) > @lsh_cutover do
-      for i <- indices,
-          j <- indices,
-          i < j,
-          mass_compatible?(by_idx[i], by_idx[j], mass_tolerance),
-          not same_location?(by_idx[i], by_idx[j]),
-          minhash_compatible?(sig_cache[i], sig_cache[j]),
-          reduce: pairs do
-        acc -> MapSet.put(acc, {i, j})
-      end
+      {num_bands, rows_per_band} = LSH.optimal_params(@jaccard_threshold)
+
+      indices
+      |> Enum.filter(&sig_cache[&1])
+      |> Enum.map(&{&1, sig_cache[&1]})
+      |> LSH.candidate_pairs(num_bands, rows_per_band)
+      |> add_compatible_pairs(pairs, by_idx, mass_tolerance)
     else
       for i <- indices,
           j <- indices,
@@ -113,17 +111,20 @@ defmodule ExDNA.Detection.Fuzzy do
     end
   end
 
-  defp minhash_compatible?(nil, _), do: false
-  defp minhash_compatible?(_, nil), do: false
-
-  defp minhash_compatible?(sig_a, sig_b) do
-    matching = count_matching(sig_a, sig_b, 0)
-    matching / @minhash_size >= @jaccard_threshold
+  defp add_compatible_pairs(candidate_pairs, pairs, by_idx, mass_tolerance) do
+    Enum.reduce(candidate_pairs, pairs, fn {i, j}, acc ->
+      maybe_add_pair(acc, i, j, by_idx, mass_tolerance)
+    end)
   end
 
-  defp count_matching([], [], acc), do: acc
-  defp count_matching([h | ta], [h | tb], acc), do: count_matching(ta, tb, acc + 1)
-  defp count_matching([_ | ta], [_ | tb], acc), do: count_matching(ta, tb, acc)
+  defp maybe_add_pair(pairs, i, j, by_idx, mass_tolerance) do
+    if mass_compatible?(by_idx[i], by_idx[j], mass_tolerance) and
+         not same_location?(by_idx[i], by_idx[j]) do
+      MapSet.put(pairs, {i, j})
+    else
+      pairs
+    end
+  end
 
   defp jaccard_compatible?(a, b) do
     sa = a.sub_hashes

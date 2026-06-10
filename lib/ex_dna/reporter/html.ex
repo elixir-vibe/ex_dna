@@ -17,10 +17,11 @@ defmodule ExDNA.Reporter.HTML do
   ])
 
   @impl true
-  def report(%ExDNA.Report{clones: clones, stats: stats}) do
+  def report(%ExDNA.Report{clones: clones, stats: stats, config: config}) do
+    output_file = config.output_file || @output_file
     html = render_template(clones, stats)
-    File.write!(@output_file, html)
-    IO.puts("  HTML report written to #{@output_file}")
+    File.write!(output_file, html)
+    IO.puts("  HTML report written to #{output_file}")
     :ok
   end
 

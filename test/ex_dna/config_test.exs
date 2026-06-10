@@ -13,14 +13,28 @@ defmodule ExDNA.ConfigTest do
       assert config.excluded_macros == []
       assert config.parse_timeout == 5_000
       assert config.normalize_pipes == false
+      assert config.max_module_forms == 200
+      assert config.min_fuzzy_mass == nil
+      assert config.output_file == nil
     end
 
     test "overrides defaults with provided options" do
-      config = Config.new(min_mass: 10, normalize_pipes: true, excluded_macros: [:@, :schema])
+      config =
+        Config.new(
+          min_mass: 10,
+          normalize_pipes: true,
+          excluded_macros: [:@, :schema],
+          max_module_forms: 300,
+          min_fuzzy_mass: 80,
+          output_file: "report.html"
+        )
 
       assert config.min_mass == 10
       assert config.normalize_pipes == true
       assert config.excluded_macros == [:@, :schema]
+      assert config.max_module_forms == 300
+      assert config.min_fuzzy_mass == 80
+      assert config.output_file == "report.html"
     end
 
     test "loads config file when present" do

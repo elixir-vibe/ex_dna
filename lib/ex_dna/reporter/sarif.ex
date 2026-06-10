@@ -15,18 +15,20 @@ defmodule ExDNA.Reporter.SARIF do
   @info_uri "https://github.com/elixir-vibe/ex_dna"
 
   @impl true
-  def report(%ExDNA.Report{clones: clones}) do
+  def report(%ExDNA.Report{clones: clones, config: config}) do
     sarif = %{
       "$schema": @schema_uri,
       version: "2.1.0",
       runs: [build_run(clones)]
     }
 
+    output_file = config.output_file || @output_file
+
     sarif
     |> Jason.encode!(pretty: true)
-    |> then(&File.write!(@output_file, &1))
+    |> then(&File.write!(output_file, &1))
 
-    IO.puts("  SARIF report written to #{@output_file}")
+    IO.puts("  SARIF report written to #{output_file}")
     :ok
   end
 

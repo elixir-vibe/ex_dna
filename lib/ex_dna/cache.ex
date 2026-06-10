@@ -39,7 +39,7 @@ defmodule ExDNA.Cache do
   """
   @spec write(entries(), String.t(), binary()) :: :ok | {:error, term()}
   def write(entries, path \\ default_path(), config_hash \\ <<>>) do
-    binary = :erlang.term_to_binary({@cache_version, config_hash, entries})
+    binary = :erlang.term_to_binary({@cache_version, config_hash, entries}, [:compressed])
     File.write(path, binary)
   end
 
@@ -49,7 +49,7 @@ defmodule ExDNA.Cache do
   @spec config_hash(ExDNA.Config.t()) :: binary()
   def config_hash(config) do
     {config.min_mass, config.literal_mode, config.normalize_pipes, config.excluded_macros,
-     config.ignored_attributes, config.max_window_size}
+     config.ignored_attributes, config.max_window_size, config.max_module_forms}
     |> :erlang.term_to_binary()
     |> then(&:erlang.md5/1)
   end

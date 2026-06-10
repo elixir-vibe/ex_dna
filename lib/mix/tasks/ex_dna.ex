@@ -18,6 +18,10 @@ defmodule Mix.Tasks.ExDna do
       a single fingerprint (default: 4). Raise to catch larger cross-module clones.
     * `--mass-tolerance` — max relative size difference for Type-III comparison,
       0.0–1.0 (default: 0.3). Raise to compare fragments of more different sizes.
+    * `--min-fuzzy-mass` — minimum AST node count for Type-III candidates
+      (default: `min_mass * 2`).
+    * `--max-module-forms` — max top-level module forms eligible for sibling
+      window detection (default: 200).
     * `--literal-mode` — `keep` (Type-I only) or `abstract` (also Type-II). Default: `keep`
     * `--normalize-pipes` — treat `x |> f()` the same as `f(x)`. Default: false
     * `--exclude-macro` — macro name to skip during analysis (repeatable).
@@ -27,6 +31,7 @@ defmodule Mix.Tasks.ExDna do
       are ignored by default. Use this for project-specific noise.
     * `--ignore` — glob pattern to exclude (repeatable)
     * `--format` — output format: `console` (default), `json`, `html`, or `sarif`
+    * `--output` — output file for `html` or `sarif` reports
     * `--max-clones` — maximum allowed clones. Exits with code 1 only when
       exceeded. Useful for gradual adoption in brownfield projects.
 
@@ -39,24 +44,29 @@ defmodule Mix.Tasks.ExDna do
 
   @impl Mix.Task
   def run(argv) do
-    {opts, paths, _} =
+    {opts, paths, invalid} =
       OptionParser.parse(argv,
         strict: [
           min_mass: :integer,
           min_occurrences: :integer,
           min_similarity: :float,
           max_window_size: :integer,
+          max_module_forms: :integer,
           mass_tolerance: :float,
+          min_fuzzy_mass: :integer,
           literal_mode: :string,
           normalize_pipes: :boolean,
           exclude_macro: :keep,
           ignore_attribute: :keep,
           ignore: :keep,
           format: :string,
+          output: :string,
           max_clones: :integer
         ],
         aliases: [m: :min_mass, o: :min_occurrences, s: :min_similarity, i: :ignore, f: :format]
       )
+
+    Options.validate_parse!(invalid)
 
     config_opts = build_config(opts, paths)
     report = ExDNA.analyze(config_opts)
@@ -97,55 +107,32 @@ defmodule Mix.Tasks.ExDna do
         reporters_for(Keyword.fetch!(opts, :format))
       end
 
-    literal_mode =
-      if Keyword.has_key?(opts, :literal_mode) do
-        case Keyword.fetch!(opts, :literal_mode) do
-          "abstract" -> :abstract
-          _ -> :keep
-        end
-      end
-
-    excluded_macros =
-      case Keyword.get_values(opts, :exclude_macro) do
-        [] -> nil
-        macros -> Enum.map(macros, &String.to_atom/1)
-      end
-
-    extra_ignored =
-      opts
-      |> Keyword.get_values(:ignore_attribute)
-      |> Enum.map(&String.to_atom/1)
-
-    ignored_attributes =
-      if extra_ignored != [] do
-        ExDNA.Config.default(:ignored_attributes) ++ extra_ignored
-      else
-        nil
-      end
-
     ignored_paths = Options.optional_values(opts, :ignore)
 
     []
     |> Options.maybe_put(:paths, if(paths != [], do: paths))
     |> Options.maybe_put(:reporters, reporters)
-    |> Options.maybe_put(:literal_mode, literal_mode)
-    |> Options.maybe_put(:normalize_pipes, explicit_value(opts, :normalize_pipes))
+    |> Options.maybe_put(:literal_mode, Options.literal_mode(opts))
+    |> Options.maybe_put(:normalize_pipes, Options.explicit_value(opts, :normalize_pipes))
     |> Options.maybe_put(:ignore, ignored_paths)
     |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
     |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
     |> Options.maybe_put(:min_similarity, Keyword.get(opts, :min_similarity))
     |> Options.maybe_put(:max_window_size, Keyword.get(opts, :max_window_size))
+    |> Options.maybe_put(:max_module_forms, Keyword.get(opts, :max_module_forms))
     |> Options.maybe_put(:mass_tolerance, Keyword.get(opts, :mass_tolerance))
-    |> Options.maybe_put(:excluded_macros, excluded_macros)
-    |> Options.maybe_put(:ignored_attributes, ignored_attributes)
+    |> Options.maybe_put(:min_fuzzy_mass, Keyword.get(opts, :min_fuzzy_mass))
+    |> Options.maybe_put(:excluded_macros, Options.excluded_macros(opts))
+    |> Options.maybe_put(:ignored_attributes, Options.ignored_attributes(opts))
+    |> Options.maybe_put(:output_file, Keyword.get(opts, :output))
   end
 
-  defp explicit_value(opts, key) do
-    if Keyword.has_key?(opts, key), do: Keyword.fetch!(opts, key)
-  end
-
+  defp reporters_for("console"), do: [ExDNA.Reporter.Console]
   defp reporters_for("json"), do: [ExDNA.Reporter.JSON]
   defp reporters_for("html"), do: [ExDNA.Reporter.HTML]
   defp reporters_for("sarif"), do: [ExDNA.Reporter.SARIF]
-  defp reporters_for(_), do: [ExDNA.Reporter.Console]
+
+  defp reporters_for(format) do
+    Mix.raise("Invalid format #{inspect(format)}. Expected one of: console, json, html, sarif")
+  end
 end

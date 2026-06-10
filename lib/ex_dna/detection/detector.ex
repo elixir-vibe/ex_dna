@@ -133,7 +133,7 @@ defmodule ExDNA.Detection.Detector do
 
     exact_hashes = MapSet.new(exact_clones, & &1.hash)
 
-    min_fuzzy_mass = config.min_mass * 2
+    min_fuzzy_mass = config.min_fuzzy_mass || config.min_mass * 2
 
     normalizer_opts = [
       literal_mode: config.literal_mode,

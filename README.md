@@ -63,6 +63,7 @@ mix ex_dna                              # scan lib/
 mix ex_dna lib/accounts lib/admin       # specific paths
 mix ex_dna --literal-mode abstract      # enable literal abstraction for Type-II
 mix ex_dna --min-similarity 0.85        # enable Type-III (near-miss)
+mix ex_dna --min-fuzzy-mass 80          # require larger Type-III candidates
 mix ex_dna --min-mass 50                # fewer, larger clones
 mix ex_dna --max-clones 10              # fail only above budget
 mix ex_dna --format json                # machine-readable
@@ -80,6 +81,24 @@ mix ex_dna.explain 3 lib/accounts --min-mass 20
 Shows the full anti-unification breakdown — common structure, divergence
 points, and the suggested extraction with call sites. Pass the same paths and
 detection flags you used for `mix ex_dna` to keep clone numbering aligned.
+
+### Typical workflows
+
+```bash
+mix ex_dna --min-mass 40
+```
+
+Start with exact and renamed-variable clones, then opt into broader matching as
+needed:
+
+```bash
+mix ex_dna --literal-mode abstract      # include changed literals (Type II)
+mix ex_dna --min-similarity 0.85       # include near-miss clones (Type III)
+mix ex_dna --normalize-pipes           # compare pipe chains and nested calls
+```
+
+For noisy brownfield projects, raise `--min-mass` or `--min-fuzzy-mass`, and use
+`--max-clones` as a clone budget while paying down duplication.
 
 ### Programmatic API
 
@@ -113,14 +132,17 @@ Create `.ex_dna.exs` in your project root:
 | `min_mass` | `--min-mass` | `30` | Minimum AST nodes for a fragment |
 | `min_occurrences` | `--min-occurrences` | `2` | Minimum number of code occurrences to label a clone |
 | `min_similarity` | `--min-similarity` | `1.0` | Threshold for Type-III (set < 1.0 to enable) |
+| `min_fuzzy_mass` | `--min-fuzzy-mass` | `min_mass * 2` | Minimum AST nodes for Type-III candidates |
 | `literal_mode` | `--literal-mode` | `keep` | `keep` = exact + renamed-variable clones, `abstract` = also changed-literal clones |
 | `normalize_pipes` | `--normalize-pipes` | `false` | Treat `x \|> f()` same as `f(x)` |
 | `excluded_macros` | `--exclude-macro` | `[]` | Macro calls to skip entirely |
 | `ignored_attributes` | `--ignore-attribute` | *(see below)* | Module attribute names to skip |
+| `max_module_forms` | `--max-module-forms` | `200` | Max top-level forms eligible for sibling-window detection |
 | `parse_timeout` | — | `5000` | Max ms per file (kills hung parses) |
 | `ignore` | `--ignore` | `[]` | Glob patterns to exclude |
 | — | `--max-clones` | — | Clone budget (exit 1 only above this) |
 | — | `--format` | `console` | `console`, `json`, `html`, or `sarif` |
+| `output_file` | `--output` | format default | Output path for HTML/SARIF reports |
 
 **Default ignored attributes:** all of Elixir's
 [reserved attributes](https://hexdocs.pm/elixir/Module.html#reserved_attributes/0)

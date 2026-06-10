@@ -28,6 +28,14 @@
 - **Mix task config precedence** — absent CLI defaults no longer overwrite
   values from `.ex_dna.exs`, and `mix ex_dna.explain` now accepts paths plus
   the same detection-shaping flags as `mix ex_dna`.
+- **Large-module sibling windows** — the module-body cutoff is now configurable
+  via `max_module_forms` / `--max-module-forms` and defaults to 200 forms.
+- **LSH banding** — large Type-III candidate postings now use the existing LSH
+  banding implementation instead of pairwise MinHash compatibility checks.
+- **Report output paths** — HTML and SARIF output files can now be configured
+  with `output_file` / `--output`.
+- **CLI validation** — unknown options and invalid `--format` / `--literal-mode`
+  values now fail with clear Mix errors.
 - **Credo integration suppression** — suppression comments now work when ExDNA
   runs through Credo's cached ASTs by carrying source text alongside the AST.
 - **CI alias isolation** — `mix ci` now runs Credo, tests, Dialyzer, and ExDNA
