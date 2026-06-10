@@ -130,11 +130,20 @@ if Code.ensure_loaded?(GenLSP) do
       {:ok, task_pid} =
         Task.start(fn ->
           {clones, diagnostics_by_file} = analyze(root_uri, overrides)
-          publish_diagnostics(lsp, diagnostics_by_file, previous_clones)
-          assign(lsp, clones: clones, analysis_task: nil)
+          send(lsp.pid, {:ex_dna_analysis_result, clones, diagnostics_by_file, previous_clones})
         end)
 
       {:noreply, assign(lsp, analysis_task: task_pid)}
+    end
+
+    @impl true
+    def handle_info({:ex_dna_analysis_result, clones, diagnostics_by_file, previous_clones}, lsp) do
+      publish_diagnostics(lsp, diagnostics_by_file, previous_clones)
+      {:noreply, assign(lsp, clones: clones, analysis_task: nil)}
+    end
+
+    def handle_info(_message, lsp) do
+      {:noreply, lsp}
     end
 
     defp analyze(root_uri, overrides) do

@@ -59,6 +59,8 @@ defmodule ExDNA.Detection.FuzzyTest do
       [clone] = clones
       assert clone.type == :type_iii
       assert clone.similarity >= 0.7
+      assert clone.source_snippets != []
+      assert Enum.all?(clone.source_snippets, &(&1 != ""))
     end
 
     test "groups connected near-miss pairs into one clone" do
@@ -97,6 +99,33 @@ defmodule ExDNA.Detection.FuzzyTest do
       assert [clone] = clones
       assert length(clone.fragments) == 3
       assert clone.similarity >= 0.7
+    end
+
+    test "does not expose grouped-def internals in snippets" do
+      grouped_a =
+        {:__ex_dna_grouped_def__, [line: 1],
+         [
+           Code.string_to_quoted!("def foo(:a), do: :ok"),
+           Code.string_to_quoted!("def foo(:b), do: :error")
+         ]}
+
+      grouped_b =
+        {:__ex_dna_grouped_def__, [line: 1],
+         [
+           Code.string_to_quoted!("def foo(:x), do: :ok"),
+           Code.string_to_quoted!("def foo(:y), do: :error")
+         ]}
+
+      fragments = [
+        %{synthetic_fragment("foo(:a)", "a.ex") | ast: grouped_a, mass: 30},
+        %{synthetic_fragment("foo(:x)", "b.ex") | ast: grouped_b, mass: 30}
+      ]
+
+      clones =
+        Fuzzy.detect(fragments, 0.6, MapSet.new(), normalizer_opts: [literal_mode: :abstract])
+
+      assert [clone] = clones
+      refute Enum.any?(clone.source_snippets, &String.contains?(&1, "__ex_dna_grouped_def__"))
     end
 
     test "keeps one fragment per file and line in grouped clones" do

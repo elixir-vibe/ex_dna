@@ -25,6 +25,8 @@
   configured normalizer options, including pipe normalization.
 - **Type-III grouping** — near-miss clone pairs are now grouped into connected
   clone sets, so 3+ related occurrences can satisfy `min_occurrences`.
+- **Type-III snippets** — fuzzy clones now include source snippets and unwrap
+  internal grouped-definition markers before reporting.
 - **Mix task config precedence** — absent CLI defaults no longer overwrite
   values from `.ex_dna.exs`, and `mix ex_dna.explain` now accepts paths plus
   the same detection-shaping flags as `mix ex_dna`.

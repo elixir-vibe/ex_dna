@@ -235,8 +235,24 @@ defmodule ExDNA.Detection.Fuzzy do
         Enum.map(fragments, fn frag ->
           %{file: frag.file, line: frag.line, ast: frag.ast, mass: frag.mass}
         end),
+      source_snippets: Enum.map(fragments, &source_snippet/1),
       suggestion: nil,
       similarity: similarity
     }
+  end
+
+  defp source_snippet(frag) do
+    frag.ast
+    |> unwrap_grouped_def()
+    |> Macro.to_string()
+  rescue
+    _ -> inspect(frag.ast)
+  end
+
+  defp unwrap_grouped_def(ast) do
+    Macro.prewalk(ast, fn
+      {:__ex_dna_grouped_def__, _meta, clauses} -> {:__block__, [], clauses}
+      node -> node
+    end)
   end
 end
