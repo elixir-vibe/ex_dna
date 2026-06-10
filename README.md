@@ -74,10 +74,12 @@ Deep-dive into a specific clone:
 
 ```bash
 mix ex_dna.explain 3
+mix ex_dna.explain 3 lib/accounts --min-mass 20
 ```
 
 Shows the full anti-unification breakdown — common structure, divergence
-points, and the suggested extraction with call sites.
+points, and the suggested extraction with call sites. Pass the same paths and
+detection flags you used for `mix ex_dna` to keep clone numbering aligned.
 
 ### Programmatic API
 

@@ -49,6 +49,29 @@ defmodule Mix.Tasks.ExDnaTest do
     end)
   end
 
+  test "does not override config paths when no path is passed", %{dir: dir} do
+    write_duplicate_pair(dir)
+
+    capture_io(fn ->
+      File.cd!(dir, fn ->
+        File.write!(Path.join(dir, ".ex_dna.exs"), ~s/%{paths: ["."], ignore: ["b.ex"]}/)
+        assert is_nil(ExDna.run(["--min-mass", "5"]))
+      end)
+    end)
+  end
+
+  test "explain accepts a clone index followed by paths", %{dir: dir} do
+    write_duplicate_pair(dir)
+
+    output =
+      capture_io(fn ->
+        Explain.run(["1", "--min-mass", "5", dir])
+      end)
+
+    assert output =~ "Clone #1"
+    assert output =~ "Detailed Analysis"
+  end
+
   test "explain respects ignored files in config", %{dir: dir} do
     write_duplicate_pair(dir)
 

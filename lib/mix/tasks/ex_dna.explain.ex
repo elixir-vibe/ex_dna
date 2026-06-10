@@ -7,6 +7,7 @@ defmodule Mix.Tasks.ExDna.Explain do
 
       $ mix ex_dna.explain 1
       $ mix ex_dna.explain 1 --min-mass 10
+      $ mix ex_dna.explain 1 lib/my_app --exclude-macro schema
 
   The clone number comes from `mix ex_dna` output.
   """
@@ -25,35 +26,19 @@ defmodule Mix.Tasks.ExDna.Explain do
           min_mass: :integer,
           min_occurrences: :integer,
           min_similarity: :float,
+          max_window_size: :integer,
+          mass_tolerance: :float,
           literal_mode: :string,
           normalize_pipes: :boolean,
+          exclude_macro: :keep,
+          ignore_attribute: :keep,
           ignore: :keep
         ],
         aliases: [m: :min_mass, o: :min_occurrences, s: :min_similarity, i: :ignore]
       )
 
-    clone_index =
-      case args do
-        [n | _] -> String.to_integer(n)
-        _ -> 1
-      end
-
-    literal_mode =
-      case Keyword.get(opts, :literal_mode, "keep") do
-        "abstract" -> :abstract
-        _ -> :keep
-      end
-
-    config_opts =
-      [
-        reporters: [],
-        literal_mode: literal_mode,
-        normalize_pipes: Keyword.get(opts, :normalize_pipes, false)
-      ]
-      |> Options.maybe_put(:ignore, Options.optional_values(opts, :ignore))
-      |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
-      |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
-      |> Options.maybe_put(:min_similarity, Keyword.get(opts, :min_similarity))
+    {clone_index, paths} = clone_index_and_paths(args)
+    config_opts = build_config(opts, paths)
 
     report = ExDNA.analyze(config_opts)
 
@@ -70,6 +55,65 @@ defmodule Mix.Tasks.ExDna.Explain do
       clone ->
         explain_clone(clone, clone_index)
     end
+  end
+
+  defp build_config(opts, paths) do
+    [reporters: []]
+    |> Options.maybe_put(:paths, if(paths != [], do: paths))
+    |> Options.maybe_put(:literal_mode, literal_mode(opts))
+    |> Options.maybe_put(:normalize_pipes, explicit_value(opts, :normalize_pipes))
+    |> Options.maybe_put(:ignore, Options.optional_values(opts, :ignore))
+    |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
+    |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
+    |> Options.maybe_put(:min_similarity, Keyword.get(opts, :min_similarity))
+    |> Options.maybe_put(:max_window_size, Keyword.get(opts, :max_window_size))
+    |> Options.maybe_put(:mass_tolerance, Keyword.get(opts, :mass_tolerance))
+    |> Options.maybe_put(:excluded_macros, excluded_macros(opts))
+    |> Options.maybe_put(:ignored_attributes, ignored_attributes(opts))
+  end
+
+  defp literal_mode(opts) do
+    if Keyword.has_key?(opts, :literal_mode) do
+      case Keyword.fetch!(opts, :literal_mode) do
+        "abstract" -> :abstract
+        _ -> :keep
+      end
+    end
+  end
+
+  defp excluded_macros(opts) do
+    case Keyword.get_values(opts, :exclude_macro) do
+      [] -> nil
+      macros -> Enum.map(macros, &String.to_atom/1)
+    end
+  end
+
+  defp ignored_attributes(opts) do
+    extra_ignored =
+      opts
+      |> Keyword.get_values(:ignore_attribute)
+      |> Enum.map(&String.to_atom/1)
+
+    if extra_ignored != [] do
+      ExDNA.Config.default(:ignored_attributes) ++ extra_ignored
+    end
+  end
+
+  defp clone_index_and_paths(args) do
+    case args do
+      [first | rest] ->
+        case Integer.parse(first) do
+          {index, ""} -> {index, rest}
+          _ -> {1, args}
+        end
+
+      [] ->
+        {1, []}
+    end
+  end
+
+  defp explicit_value(opts, key) do
+    if Keyword.has_key?(opts, key), do: Keyword.fetch!(opts, key)
   end
 
   defp explain_clone(clone, index) do

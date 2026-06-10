@@ -25,6 +25,9 @@
   configured normalizer options, including pipe normalization.
 - **Type-III grouping** — near-miss clone pairs are now grouped into connected
   clone sets, so 3+ related occurrences can satisfy `min_occurrences`.
+- **Mix task config precedence** — absent CLI defaults no longer overwrite
+  values from `.ex_dna.exs`, and `mix ex_dna.explain` now accepts paths plus
+  the same detection-shaping flags as `mix ex_dna`.
 - **Credo integration suppression** — suppression comments now work when ExDNA
   runs through Credo's cached ASTs by carrying source text alongside the AST.
 - **CI alias isolation** — `mix ci` now runs Credo, tests, Dialyzer, and ExDNA

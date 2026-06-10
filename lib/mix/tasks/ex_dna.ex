@@ -92,12 +92,17 @@ defmodule Mix.Tasks.ExDna do
   end
 
   defp build_config(opts, paths) do
-    reporters = reporters_for(Keyword.get(opts, :format, "console"))
+    reporters =
+      if Keyword.has_key?(opts, :format) do
+        reporters_for(Keyword.fetch!(opts, :format))
+      end
 
     literal_mode =
-      case Keyword.get(opts, :literal_mode, "keep") do
-        "abstract" -> :abstract
-        _ -> :keep
+      if Keyword.has_key?(opts, :literal_mode) do
+        case Keyword.fetch!(opts, :literal_mode) do
+          "abstract" -> :abstract
+          _ -> :keep
+        end
       end
 
     excluded_macros =
@@ -120,12 +125,11 @@ defmodule Mix.Tasks.ExDna do
 
     ignored_paths = Options.optional_values(opts, :ignore)
 
-    [
-      paths: if(paths != [], do: paths, else: ["lib/"]),
-      reporters: reporters,
-      literal_mode: literal_mode,
-      normalize_pipes: Keyword.get(opts, :normalize_pipes, false)
-    ]
+    []
+    |> Options.maybe_put(:paths, if(paths != [], do: paths))
+    |> Options.maybe_put(:reporters, reporters)
+    |> Options.maybe_put(:literal_mode, literal_mode)
+    |> Options.maybe_put(:normalize_pipes, explicit_value(opts, :normalize_pipes))
     |> Options.maybe_put(:ignore, ignored_paths)
     |> Options.maybe_put(:min_mass, Keyword.get(opts, :min_mass))
     |> Options.maybe_put(:min_occurrences, Keyword.get(opts, :min_occurrences))
@@ -134,6 +138,10 @@ defmodule Mix.Tasks.ExDna do
     |> Options.maybe_put(:mass_tolerance, Keyword.get(opts, :mass_tolerance))
     |> Options.maybe_put(:excluded_macros, excluded_macros)
     |> Options.maybe_put(:ignored_attributes, ignored_attributes)
+  end
+
+  defp explicit_value(opts, key) do
+    if Keyword.has_key?(opts, key), do: Keyword.fetch!(opts, key)
   end
 
   defp reporters_for("json"), do: [ExDNA.Reporter.JSON]
