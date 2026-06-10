@@ -23,6 +23,8 @@
   deserialization.
 - **Type-III similarity normalization** — fuzzy clone scoring now respects the
   configured normalizer options, including pipe normalization.
+- **Type-III grouping** — near-miss clone pairs are now grouped into connected
+  clone sets, so 3+ related occurrences can satisfy `min_occurrences`.
 - **Credo integration suppression** — suppression comments now work when ExDNA
   runs through Credo's cached ASTs by carrying source text alongside the AST.
 - **CI alias isolation** — `mix ci` now runs Credo, tests, Dialyzer, and ExDNA

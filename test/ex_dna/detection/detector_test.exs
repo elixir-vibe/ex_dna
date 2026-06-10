@@ -511,6 +511,56 @@ defmodule ExDNA.Detection.DetectorTest do
       assert type_iii != []
     end
 
+    test "keeps Type-III clone groups that satisfy min_occurrences", %{dir: dir} do
+      write_fixture(dir, "near_a.ex", """
+      defmodule NearA do
+        def process(data) do
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      write_fixture(dir, "near_b.ex", """
+      defmodule NearB do
+        def process(data) do
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.take(5)
+        end
+      end
+      """)
+
+      write_fixture(dir, "near_c.ex", """
+      defmodule NearC do
+        def process(data) do
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.reverse()
+        end
+      end
+      """)
+
+      config =
+        Config.new(
+          paths: [dir],
+          min_mass: 5,
+          min_similarity: 0.7,
+          min_occurrences: 3,
+          reporters: []
+        )
+
+      {clones, _} = Detector.run(config)
+
+      assert Enum.any?(clones, fn clone ->
+               clone.type == :type_iii and length(clone.fragments) == 3
+             end)
+    end
+
     test "detects duplicated multi-clause functions across files", %{dir: dir} do
       write_fixture(dir, "cache.ex", """
       defmodule Cache do

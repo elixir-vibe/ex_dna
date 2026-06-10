@@ -61,6 +61,44 @@ defmodule ExDNA.Detection.FuzzyTest do
       assert clone.similarity >= 0.7
     end
 
+    test "groups connected near-miss pairs into one clone" do
+      fragments = [
+        synthetic_fragment(
+          """
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.sort()
+          """,
+          "a.ex"
+        ),
+        synthetic_fragment(
+          """
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.take(5)
+          """,
+          "b.ex"
+        ),
+        synthetic_fragment(
+          """
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.reverse()
+          """,
+          "c.ex"
+        )
+      ]
+
+      clones = Fuzzy.detect(fragments, 0.7, MapSet.new())
+
+      assert [clone] = clones
+      assert length(clone.fragments) == 3
+      assert clone.similarity >= 0.7
+    end
+
     test "skips exact matches already found" do
       code = """
       data

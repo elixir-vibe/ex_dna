@@ -58,10 +58,9 @@ defmodule ExDNA.Detection.Fuzzy do
     pairs
     |> Enum.flat_map(fn {i, j} ->
       sim = EditDistance.similarity(norms[i], norms[j])
-      if sim >= min_similarity, do: [{by_idx[i], by_idx[j], sim}], else: []
+      if sim >= min_similarity, do: [{i, j, sim}], else: []
     end)
-    |> deduplicate_pairs()
-    |> Enum.map(&pair_to_clone/1)
+    |> group_pairs(by_idx)
   end
 
   defp build_inverted_index(indexed) do
@@ -148,35 +147,91 @@ defmodule ExDNA.Detection.Fuzzy do
     a.file == b.file and a.line == b.line
   end
 
-  defp deduplicate_pairs(pairs) do
-    pairs
-    |> Enum.sort_by(fn {_, _, sim} -> sim end, :desc)
-    |> Enum.reduce({[], MapSet.new()}, fn {a, b, sim}, {acc, seen} ->
-      key_a = {a.file, a.line}
-      key_b = {b.file, b.line}
+  defp group_pairs([], _by_idx), do: []
 
-      if MapSet.member?(seen, key_a) or MapSet.member?(seen, key_b) do
-        {acc, seen}
-      else
-        seen = seen |> MapSet.put(key_a) |> MapSet.put(key_b)
-        {[{a, b, sim} | acc], seen}
-      end
-    end)
-    |> elem(0)
-    |> Enum.reverse()
+  defp group_pairs(pairs, by_idx) do
+    adjacency = adjacency(pairs)
+
+    adjacency
+    |> Map.keys()
+    |> connected_components(adjacency)
+    |> Enum.map(&component_to_clone(&1, pairs, by_idx))
   end
 
-  defp pair_to_clone({frag_a, frag_b, similarity}) do
-    mass = max(frag_a.mass, frag_b.mass)
+  @spec adjacency([{non_neg_integer(), non_neg_integer(), float()}]) :: %{
+          non_neg_integer() => [non_neg_integer()]
+        }
+  defp adjacency(pairs) do
+    Enum.reduce(pairs, %{}, fn {i, j, _sim}, acc ->
+      acc
+      |> Map.update(i, [j], &[j | &1])
+      |> Map.update(j, [i], &[i | &1])
+    end)
+  end
+
+  @spec connected_components([non_neg_integer()], %{non_neg_integer() => [non_neg_integer()]}) ::
+          [
+            [non_neg_integer()]
+          ]
+  defp connected_components(indices, adjacency) do
+    {_seen, components} =
+      Enum.reduce(indices, {%{}, []}, fn idx, {seen, components} ->
+        if Map.has_key?(seen, idx) do
+          {seen, components}
+        else
+          component = collect_component([idx], adjacency, %{})
+          {Map.merge(seen, component), [Map.keys(component) | components]}
+        end
+      end)
+
+    Enum.reverse(components)
+  end
+
+  @spec collect_component([non_neg_integer()], %{non_neg_integer() => [non_neg_integer()]}, %{
+          non_neg_integer() => true
+        }) :: %{non_neg_integer() => true}
+  defp collect_component([], _adjacency, seen), do: seen
+
+  defp collect_component([idx | rest], adjacency, seen) do
+    if Map.has_key?(seen, idx) do
+      collect_component(rest, adjacency, seen)
+    else
+      neighbours = Map.get(adjacency, idx, [])
+      collect_component(neighbours ++ rest, adjacency, Map.put(seen, idx, true))
+    end
+  end
+
+  @spec component_to_clone(
+          [non_neg_integer()],
+          [{non_neg_integer(), non_neg_integer(), float()}],
+          %{
+            non_neg_integer() => map()
+          }
+        ) :: Clone.t()
+  defp component_to_clone(component, pairs, by_idx) do
+    component_set = MapSet.new(component)
+
+    similarity =
+      pairs
+      |> Enum.filter(fn {i, j, _sim} ->
+        MapSet.member?(component_set, i) and MapSet.member?(component_set, j)
+      end)
+      |> Enum.map(fn {_i, _j, sim} -> sim end)
+      |> Enum.min()
+
+    fragments =
+      component
+      |> Enum.map(&by_idx[&1])
+      |> Enum.sort_by(&{&1.file, &1.line, &1.mass})
 
     %Clone{
       type: :type_iii,
       hash: nil,
-      mass: mass,
-      fragments: [
-        %{file: frag_a.file, line: frag_a.line, ast: frag_a.ast, mass: frag_a.mass},
-        %{file: frag_b.file, line: frag_b.line, ast: frag_b.ast, mass: frag_b.mass}
-      ],
+      mass: fragments |> Enum.map(& &1.mass) |> Enum.max(),
+      fragments:
+        Enum.map(fragments, fn frag ->
+          %{file: frag.file, line: frag.line, ast: frag.ast, mass: frag.mass}
+        end),
       suggestion: nil,
       similarity: similarity
     }
