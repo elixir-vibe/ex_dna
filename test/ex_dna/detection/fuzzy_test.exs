@@ -99,6 +99,19 @@ defmodule ExDNA.Detection.FuzzyTest do
       assert clone.similarity >= 0.7
     end
 
+    test "keeps one fragment per file and line in grouped clones" do
+      fragments = [
+        synthetic_fragment("foo(a, b, c) |> bar() |> baz()", "a.ex"),
+        synthetic_fragment("foo(a, b, c) |> bar()", "a.ex"),
+        synthetic_fragment("foo(x, y, z) |> qux() |> baz()", "b.ex")
+      ]
+
+      clones = Fuzzy.detect(fragments, 0.3, MapSet.new())
+
+      assert [clone] = clones
+      assert Enum.uniq_by(clone.fragments, &{&1.file, &1.line}) == clone.fragments
+    end
+
     test "skips exact matches already found" do
       code = """
       data

@@ -223,6 +223,8 @@ defmodule ExDNA.Detection.Fuzzy do
     fragments =
       component
       |> Enum.map(&by_idx[&1])
+      |> Enum.sort_by(& &1.mass, :desc)
+      |> Enum.uniq_by(&{&1.file, &1.line})
       |> Enum.sort_by(&{&1.file, &1.line, &1.mass})
 
     %Clone{
