@@ -54,7 +54,14 @@ if Code.ensure_loaded?(GenLSP) do
     def init(lsp, args) do
       root_uri = Keyword.get(args, :root_uri)
       config_overrides = Keyword.get(args, :config_overrides, [])
-      {:ok, assign(lsp, root_uri: root_uri, clones: [], config_overrides: config_overrides)}
+
+      {:ok,
+       assign(lsp,
+         root_uri: root_uri,
+         clones: [],
+         config_overrides: config_overrides,
+         analysis_task: nil
+       )}
     end
 
     @impl true
@@ -81,11 +88,11 @@ if Code.ensure_loaded?(GenLSP) do
 
     @impl true
     def handle_notification(%Initialized{}, lsp) do
-      run_analysis(lsp)
+      start_analysis(lsp)
     end
 
     def handle_notification(%TextDocumentDidSave{}, lsp) do
-      run_analysis(lsp)
+      start_analysis(lsp)
     end
 
     def handle_notification(%TextDocumentDidOpen{}, lsp) do
@@ -105,15 +112,30 @@ if Code.ensure_loaded?(GenLSP) do
       {:noreply, lsp}
     end
 
-    defp run_analysis(lsp) do
+    defp start_analysis(lsp) do
       assigns = GenLSP.LSP.assigns(lsp)
-      root_path = uri_to_path(assigns.root_uri)
+      previous_clones = Map.get(assigns, :clones, [])
+      root_uri = assigns.root_uri
       overrides = Map.get(assigns, :config_overrides, [])
+
+      {:ok, task_pid} =
+        Task.start(fn ->
+          {clones, diagnostics_by_file} = analyze(root_uri, overrides)
+          publish_diagnostics(lsp, diagnostics_by_file, previous_clones)
+          assign(lsp, clones: clones, analysis_task: nil)
+        end)
+
+      {:noreply, assign(lsp, analysis_task: task_pid)}
+    end
+
+    defp analyze(root_uri, overrides) do
+      root_path = uri_to_path(root_uri)
       config = Config.new(overrides ++ [paths: [root_path], reporters: []])
       {clones, _} = Detector.run(config)
+      {clones, build_diagnostics(clones)}
+    end
 
-      diagnostics_by_file = build_diagnostics(clones)
-
+    defp publish_diagnostics(lsp, diagnostics_by_file, previous_clones) do
       for {file, diags} <- diagnostics_by_file do
         GenLSP.notify(lsp, %GenLSP.Notifications.TextDocumentPublishDiagnostics{
           params: %GenLSP.Structures.PublishDiagnosticsParams{
@@ -124,7 +146,7 @@ if Code.ensure_loaded?(GenLSP) do
       end
 
       old_files =
-        Map.get(assigns, :clones, [])
+        previous_clones
         |> Enum.flat_map(fn c -> Enum.map(c.fragments, & &1.file) end)
         |> Enum.uniq()
 
@@ -138,8 +160,6 @@ if Code.ensure_loaded?(GenLSP) do
           }
         })
       end
-
-      {:noreply, assign(lsp, clones: clones)}
     end
 
     defp build_diagnostics(clones) do
