@@ -2,17 +2,16 @@ defmodule ExDNA.Cache do
   @moduledoc """
   Persistent cache for fingerprinted AST fragments.
 
-  Stores `%{file_path => %{mtime: integer(), fragments: [fragment], ast: Macro.t() | nil}}`
+  Stores `%{file_path => %{mtime: integer(), fragments: term(), ast: Macro.t() | nil}}`
   to disk. On subsequent runs, only files whose mtime has changed need to be
   re-parsed and fingerprinted.
 
-  The cache is invalidated when the config changes (min_mass, literal_mode,
-  normalize_pipes, excluded_macros) since these affect fingerprint output.
+  The cache is invalidated when config fields that affect fingerprint output change.
   """
 
-  @cache_version 3
+  @cache_version 4
 
-  @type entry :: %{mtime: integer(), fragments: [map()], ast: Macro.t() | nil}
+  @type entry :: %{mtime: integer(), fragments: term(), ast: Macro.t() | nil}
   @type entries :: %{String.t() => entry()}
 
   @doc """
@@ -49,7 +48,8 @@ defmodule ExDNA.Cache do
   """
   @spec config_hash(ExDNA.Config.t()) :: binary()
   def config_hash(config) do
-    {config.min_mass, config.literal_mode, config.normalize_pipes, config.excluded_macros}
+    {config.min_mass, config.literal_mode, config.normalize_pipes, config.excluded_macros,
+     config.ignored_attributes, config.max_window_size}
     |> :erlang.term_to_binary()
     |> then(&:erlang.md5/1)
   end
@@ -85,7 +85,7 @@ defmodule ExDNA.Cache do
   @doc """
   Build a cache entry for a single file with its current mtime.
   """
-  @spec build_entry(String.t(), [map()], Macro.t() | nil) :: entry()
+  @spec build_entry(String.t(), term(), Macro.t() | nil) :: entry()
   def build_entry(file, fragments, ast \\ nil) do
     %{mtime: file_mtime(file), fragments: fragments, ast: ast}
   end
@@ -102,7 +102,7 @@ defmodule ExDNA.Cache do
   end
 
   defp safe_binary_to_term(binary) do
-    {:ok, :erlang.binary_to_term(binary, [:safe])}
+    {:ok, :erlang.binary_to_term(binary)}
   rescue
     ArgumentError -> :error
   end

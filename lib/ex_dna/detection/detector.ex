@@ -48,27 +48,43 @@ defmodule ExDNA.Detection.Detector do
      end)}
   end
 
-  defp run_detection(config, file_ast_pairs) do
-    fragments = fingerprint_pairs(file_ast_pairs, config)
+  @doc false
+  @spec run_from_fragments(Config.t(), [map()], [map()], [
+          {String.t(), Macro.t()} | {String.t(), Macro.t(), String.t()}
+        ]) :: [Clone.t()]
+  def run_from_fragments(%Config{} = config, type_i_fragments, type_ii_fragments, file_ast_pairs)
+      when is_list(type_i_fragments) and is_list(type_ii_fragments) and is_list(file_ast_pairs) do
+    detect_from_fragments(config, type_i_fragments, type_ii_fragments, file_ast_pairs)
+  end
 
-    type_i_clones = Pipeline.find_clones(fragments, :type_i)
+  defp run_detection(config, file_ast_pairs) do
+    type_i_config = fingerprint_config(config, literal_mode: :keep, normalize_variables: false)
+    type_i_fragments = fingerprint_pairs(file_ast_pairs, type_i_config)
+
+    type_ii_config =
+      fingerprint_config(config,
+        literal_mode: config.literal_mode,
+        normalize_variables: true
+      )
+
+    type_ii_fragments = fingerprint_pairs(file_ast_pairs, type_ii_config)
+
+    detect_from_fragments(config, type_i_fragments, type_ii_fragments, file_ast_pairs)
+  end
+
+  defp detect_from_fragments(config, type_i_fragments, type_ii_fragments, file_ast_pairs) do
+    type_i_clones = Pipeline.find_clones(type_i_fragments, :type_i)
 
     type_ii_clones =
-      if config.min_similarity < 1.0 or config.literal_mode == :abstract do
-        abstract_config = %{config | literal_mode: :abstract}
-        fragments_ii = fingerprint_pairs(file_ast_pairs, abstract_config)
-
-        Pipeline.find_clones(fragments_ii, :type_ii)
-        |> reject_already_found(type_i_clones)
-      else
-        []
-      end
+      type_ii_fragments
+      |> Pipeline.find_clones(:type_ii)
+      |> reject_already_found(type_i_clones)
 
     exact_clones =
       (type_i_clones ++ type_ii_clones)
       |> Filter.prune_nested()
 
-    type_iii_clones = find_fuzzy_clones(fragments, exact_clones, config)
+    type_iii_clones = find_fuzzy_clones(type_i_fragments, exact_clones, config)
 
     (exact_clones ++ type_iii_clones)
     |> Enum.filter(&(length(&1.fragments) >= config.min_occurrences))
@@ -119,16 +135,40 @@ defmodule ExDNA.Detection.Detector do
 
     min_fuzzy_mass = config.min_mass * 2
 
+    normalizer_opts = [
+      literal_mode: config.literal_mode,
+      normalize_pipes: config.normalize_pipes,
+      normalize_variables: true
+    ]
+
     fragments
     |> Enum.filter(fn f -> f.mass >= min_fuzzy_mass end)
-    |> Fuzzy.detect(config.min_similarity, exact_hashes, mass_tolerance: config.mass_tolerance)
+    |> Fuzzy.detect(config.min_similarity, exact_hashes,
+      mass_tolerance: config.mass_tolerance,
+      normalizer_opts: normalizer_opts
+    )
     |> Enum.reject(fn clone ->
       Enum.any?(clone.fragments, fn f -> MapSet.member?(exact_locations, {f.file, f.line}) end)
     end)
   end
 
   defp reject_already_found(type_ii, type_i) do
-    type_i_hashes = MapSet.new(type_i, & &1.hash)
-    Enum.reject(type_ii, fn clone -> MapSet.member?(type_i_hashes, clone.hash) end)
+    type_i_locations = MapSet.new(type_i, &clone_location_signature/1)
+
+    Enum.reject(type_ii, fn clone ->
+      MapSet.member?(type_i_locations, clone_location_signature(clone))
+    end)
+  end
+
+  defp clone_location_signature(clone) do
+    clone.fragments
+    |> Enum.map(&{&1.file, &1.line, &1.mass})
+    |> Enum.sort()
+  end
+
+  defp fingerprint_config(config, overrides) do
+    config
+    |> Map.from_struct()
+    |> Map.merge(Map.new(overrides))
   end
 end

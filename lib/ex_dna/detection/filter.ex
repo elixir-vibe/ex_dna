@@ -6,6 +6,7 @@ defmodule ExDNA.Detection.Filter do
   We keep only the largest non-overlapping clone per file location.
   """
 
+  alias ExDNA.AST.Location
   alias ExDNA.Detection.Clone
 
   @doc """
@@ -42,52 +43,25 @@ defmodule ExDNA.Detection.Filter do
   end
 
   defp location_overlap?(larger_frag, smaller_frag) do
-    large_span = line_span(larger_frag.ast)
-    small_span = line_span(smaller_frag.ast)
-    large_start = larger_frag.line
-    small_start = smaller_frag.line
+    case {line_interval(larger_frag), line_interval(smaller_frag)} do
+      {{large_start, large_end}, {small_start, small_end}} ->
+        small_start >= large_start and small_end <= large_end
 
-    if large_start == 0 or small_start == 0 do
-      true
-    else
-      small_start >= large_start and
-        small_start + small_span <= large_start + large_span
+      _unknown ->
+        true
     end
   end
 
-  defp line_span(ast) do
-    {min_line, max_line} = line_range(ast, {nil, nil})
+  defp line_interval(%{ast: ast, line: fallback_line}) do
+    case Location.line_range(ast) do
+      {start_line, end_line} when is_integer(start_line) and is_integer(end_line) ->
+        {start_line, end_line}
 
-    case {min_line, max_line} do
-      {nil, _} -> 0
-      {_, nil} -> 0
-      {min, max} -> max - min + 1
+      _ when is_integer(fallback_line) and fallback_line > 0 ->
+        {fallback_line, fallback_line}
+
+      _ ->
+        :unknown
     end
   end
-
-  defp line_range({_form, meta, args}, {min, max}) when is_list(args) do
-    line = Keyword.get(meta, :line)
-    {min, max} = update_range(line, min, max)
-    Enum.reduce(args, {min, max}, &line_range/2)
-  end
-
-  defp line_range({_form, meta, ctx}, {min, max}) when is_atom(ctx) do
-    line = Keyword.get(meta, :line)
-    update_range(line, min, max)
-  end
-
-  defp line_range({left, right}, acc) do
-    acc = line_range(left, acc)
-    line_range(right, acc)
-  end
-
-  defp line_range(list, acc) when is_list(list) do
-    Enum.reduce(list, acc, &line_range/2)
-  end
-
-  defp line_range(_leaf, acc), do: acc
-
-  defp update_range(nil, min, max), do: {min, max}
-  defp update_range(line, nil, nil), do: {line, line}
-  defp update_range(line, min, max), do: {min(line, min), max(line, max)}
 end

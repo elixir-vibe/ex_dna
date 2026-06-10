@@ -53,6 +53,40 @@ defmodule ExDNA.Detection.DetectorTest do
       assert length(files) == 2
     end
 
+    test "prunes nested pipe-chain clones", %{dir: dir} do
+      write_fixture(dir, "pipe_a.ex", """
+      defmodule PipeA do
+        def process(items) do
+          items
+          |> Enum.map(fn x -> {x, x * 2, x + 10} end)
+          |> Enum.filter(fn {a, b, c} -> a > 0 and b < 100 and c != 7 end)
+          |> Enum.reduce(%{}, fn {a, b, c}, acc -> Map.put(acc, a, {b, c}) end)
+          |> Map.values()
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      write_fixture(dir, "pipe_b.ex", """
+      defmodule PipeB do
+        def process(items) do
+          items
+          |> Enum.map(fn x -> {x, x * 2, x + 10} end)
+          |> Enum.filter(fn {a, b, c} -> a > 0 and b < 100 and c != 7 end)
+          |> Enum.reduce(%{}, fn {a, b, c}, acc -> Map.put(acc, a, {b, c}) end)
+          |> Map.values()
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      config = Config.new(paths: [dir], min_mass: 30, reporters: [])
+      {clones, _} = Detector.run(config)
+
+      assert Enum.map(clones, & &1.mass) == [58]
+      assert Enum.all?(hd(clones).fragments, &(&1.line == 2))
+    end
+
     test "detects duplicates with renamed variables", %{dir: dir} do
       write_fixture(dir, "c.ex", """
       defmodule C do
@@ -78,10 +112,44 @@ defmodule ExDNA.Detection.DetectorTest do
       end
       """)
 
-      config = Config.new(paths: [dir], min_mass: 5, reporters: [])
+      config = Config.new(paths: [dir], min_mass: 20, reporters: [])
       {clones, _} = Detector.run(config)
 
-      assert clones != []
+      assert Enum.any?(clones, &(&1.type == :type_ii))
+      refute Enum.any?(clones, &(&1.type == :type_i))
+    end
+
+    test "labels changed-literal duplicates as type II in abstract mode", %{dir: dir} do
+      write_fixture(dir, "literal_a.ex", """
+      defmodule LiteralA do
+        def transform(items) do
+          items
+          |> Enum.map(fn item -> {item, item * 2, item + 10} end)
+          |> Enum.filter(fn {a, b, c} -> a > 0 and b < 100 and c != 7 end)
+          |> Enum.reduce(%{}, fn {a, b, c}, acc -> Map.put(acc, a, {b, c}) end)
+          |> Map.values()
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      write_fixture(dir, "literal_b.ex", """
+      defmodule LiteralB do
+        def transform(items) do
+          items
+          |> Enum.map(fn item -> {item, item * 2, item + 99} end)
+          |> Enum.filter(fn {a, b, c} -> a > 1 and b < 200 and c != 5 end)
+          |> Enum.reduce(%{}, fn {a, b, c}, acc -> Map.put(acc, a, {b, c}) end)
+          |> Map.values()
+          |> Enum.sort()
+        end
+      end
+      """)
+
+      config = Config.new(paths: [dir], min_mass: 30, reporters: [], literal_mode: :abstract)
+      {clones, _} = Detector.run(config)
+
+      assert Enum.map(clones, & &1.type) == [:type_ii]
     end
 
     test "returns empty list for unique code", %{dir: dir} do
@@ -185,7 +253,7 @@ defmodule ExDNA.Detection.DetectorTest do
       {clones, _} = Detector.run(config)
 
       fragments = Enum.map(clones, &length(&1.fragments))
-      assert fragments == [3, 3, 3], "should only detect clones with 3 repetitions or more"
+      assert fragments == [3], "should only detect non-nested clones with 3 repetitions or more"
     end
 
     test "reports real-world controller clones with differing callees without suggesting extraction",

@@ -26,11 +26,12 @@ defmodule ExDNA.Detection.Fuzzy do
   @doc """
   Find Type-III clones from a list of fragments at the given similarity threshold.
   """
-  @type fuzzy_opts :: [mass_tolerance: float()]
+  @type fuzzy_opts :: [mass_tolerance: float(), normalizer_opts: keyword()]
 
   @spec detect([map()], float(), MapSet.t(), fuzzy_opts()) :: [Clone.t()]
   def detect(fragments, min_similarity, exact_hashes, opts \\ []) do
     mass_tolerance = Keyword.get(opts, :mass_tolerance, 0.3)
+    normalizer_opts = Keyword.get(opts, :normalizer_opts, [])
 
     candidates =
       fragments
@@ -49,7 +50,10 @@ defmodule ExDNA.Detection.Fuzzy do
       |> Enum.flat_map(fn {i, j} -> [i, j] end)
       |> Enum.uniq()
 
-    norms = Map.new(needed_indices, fn idx -> {idx, Normalizer.normalize(by_idx[idx].ast)} end)
+    norms =
+      Map.new(needed_indices, fn idx ->
+        {idx, Normalizer.normalize(by_idx[idx].ast, normalizer_opts)}
+      end)
 
     pairs
     |> Enum.flat_map(fn {i, j} ->

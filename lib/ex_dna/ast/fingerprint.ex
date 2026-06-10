@@ -13,7 +13,7 @@ defmodule ExDNA.AST.Fingerprint do
   to catch clones that span multiple adjacent statements.
   """
 
-  alias ExDNA.AST.Normalizer
+  alias ExDNA.AST.{Location, Normalizer}
 
   @type hash :: binary()
   @type fragment :: %{
@@ -38,7 +38,7 @@ defmodule ExDNA.AST.Fingerprint do
     ctx = %{
       file: file,
       min_mass: min_mass,
-      norm_opts: Keyword.take(opts, [:literal_mode, :normalize_pipes]),
+      norm_opts: Keyword.take(opts, [:literal_mode, :normalize_pipes, :normalize_variables]),
       excluded: Keyword.get(opts, :excluded_macros, []) |> MapSet.new(),
       ignored_attrs: Keyword.get(opts, :ignored_attributes, []) |> MapSet.new(),
       max_window_size: Keyword.get(opts, :max_window_size, 4)
@@ -117,8 +117,7 @@ defmodule ExDNA.AST.Fingerprint do
     if mass >= ctx.min_mass do
       normalized = Normalizer.normalize(node, ctx.norm_opts)
       hash = compute_hash(normalized)
-      {_form, meta, _args} = node
-      line = Keyword.get(meta, :line, 0)
+      line = Location.start_line(node)
 
       frag = %{
         hash: hash,
@@ -199,7 +198,7 @@ defmodule ExDNA.AST.Fingerprint do
         mass: combined_mass,
         ast: synthetic,
         file: ctx.file,
-        line: first_line(window),
+        line: Location.start_line(synthetic),
         sub_hashes: window_subs
       }
 
@@ -212,9 +211,6 @@ defmodule ExDNA.AST.Fingerprint do
   defp child_form({form, _, _}) when is_atom(form), do: form
   defp child_form({form, _, _}) when is_tuple(form), do: :remote_call
   defp child_form(_), do: :leaf
-
-  defp first_line([{_form, meta, _args} | _]), do: Keyword.get(meta, :line, 0)
-  defp first_line(_), do: 0
 
   defp excluded_macro?(form, excluded) when is_atom(form), do: MapSet.member?(excluded, form)
   defp excluded_macro?(_, _), do: false

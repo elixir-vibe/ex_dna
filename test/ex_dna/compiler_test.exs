@@ -28,8 +28,26 @@ defmodule ExDNA.CompilerTest do
         Map.new(files, fn file ->
           with {:ok, source} <- File.read(file),
                {:ok, ast} <- Pipeline.parse_with_timeout(source, file, config.parse_timeout) do
-            frags = Pipeline.fingerprint_ast(ast, file, config)
-            {file, Cache.build_entry(file, frags, ast)}
+            fragments = %{
+              type_i:
+                Pipeline.fingerprint_ast(
+                  ast,
+                  file,
+                  config
+                  |> Map.from_struct()
+                  |> Map.merge(%{literal_mode: :keep, normalize_variables: false})
+                ),
+              type_ii:
+                Pipeline.fingerprint_ast(
+                  ast,
+                  file,
+                  config
+                  |> Map.from_struct()
+                  |> Map.merge(%{normalize_variables: true})
+                )
+            }
+
+            {file, Cache.build_entry(file, fragments, ast)}
           end
         end)
 
@@ -45,7 +63,12 @@ defmodule ExDNA.CompilerTest do
           end
         end)
 
-      {clones, _} = Detector.run(config, file_ast_pairs)
+      type_i_fragments = Enum.flat_map(cached, fn {_file, entry} -> entry.fragments.type_i end)
+      type_ii_fragments = Enum.flat_map(cached, fn {_file, entry} -> entry.fragments.type_ii end)
+
+      clones =
+        Detector.run_from_fragments(config, type_i_fragments, type_ii_fragments, file_ast_pairs)
+
       assert clones != []
     end
 
@@ -64,7 +87,7 @@ defmodule ExDNA.CompilerTest do
       {:ok, ast} = Pipeline.parse_with_timeout(source, file, config.parse_timeout)
       frags = Pipeline.fingerprint_ast(ast, file, config)
 
-      entry = Cache.build_entry(file, frags, ast)
+      entry = Cache.build_entry(file, %{type_i: frags, type_ii: frags}, ast)
       assert entry.ast != nil
       assert is_tuple(entry.ast)
     end

@@ -61,7 +61,8 @@ defmodule ExDNA.Detection.Pipeline do
         normalize_pipes: config.normalize_pipes,
         excluded_macros: config.excluded_macros,
         ignored_attributes: config.ignored_attributes,
-        max_window_size: config.max_window_size
+        max_window_size: config.max_window_size,
+        normalize_variables: Map.get(config, :normalize_variables, true)
       )
     end
   end

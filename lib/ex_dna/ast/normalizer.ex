@@ -36,7 +36,10 @@ defmodule ExDNA.AST.Normalizer do
 
   alias ExDNA.AST.Pipe
 
-  @type option :: {:literal_mode, :keep | :abstract} | {:normalize_pipes, boolean()}
+  @type option ::
+          {:literal_mode, :keep | :abstract}
+          | {:normalize_pipes, boolean()}
+          | {:normalize_variables, boolean()}
 
   @doc """
   Normalize an AST fragment.
@@ -48,13 +51,16 @@ defmodule ExDNA.AST.Normalizer do
       Defaults to `:keep`.
     * `:normalize_pipes` — when `true`, convert pipe chains to nested calls
       so `x |> f()` matches `f(x)`. Defaults to `false`.
+    * `:normalize_variables` — when `true`, replace variable names with
+      positional placeholders. Defaults to `true`.
   """
   @spec normalize(Macro.t(), [option()]) :: Macro.t()
   def normalize(ast, opts \\ []) do
     literal_mode = Keyword.get(opts, :literal_mode, :keep)
     normalize_pipes = Keyword.get(opts, :normalize_pipes, false)
+    normalize_variables = Keyword.get(opts, :normalize_variables, true)
 
-    {normalized, _env} = fused_walk(ast, normalize_pipes, %{})
+    {normalized, _env} = fused_walk(ast, normalize_pipes, normalize_variables, %{})
 
     case literal_mode do
       :keep -> normalized
@@ -91,7 +97,7 @@ defmodule ExDNA.AST.Normalizer do
   @bool_canon %{:&& => :and, :|| => :or, :! => :not}
 
   # Sigil ~w with static content — expand before recursing
-  defp fused_walk({:sigil_w, _meta, [{:<<>>, _, [content]}, modifier]}, _pipes, env)
+  defp fused_walk({:sigil_w, _meta, [{:<<>>, _, [content]}, modifier]}, _pipes, _vars, env)
        when is_binary(content) do
     expanded = expand_sigil_w(content, modifier)
     # Expanded list is all literals, no variables to rename
@@ -99,59 +105,64 @@ defmodule ExDNA.AST.Normalizer do
   end
 
   # Pipe: flatten then recurse into the result
-  defp fused_walk({:|>, _meta, [left, right]}, true = pipes, env) do
-    {left_n, env} = fused_walk(left, pipes, env)
-    {right_n, env} = fused_walk(right, pipes, env)
+  defp fused_walk({:|>, _meta, [left, right]}, true = pipes, vars, env) do
+    {left_n, env} = fused_walk(left, pipes, vars, env)
+    {right_n, env} = fused_walk(right, pipes, vars, env)
     {Pipe.inject_first_arg(right_n, left_n), env}
   end
 
   # Variable node
-  defp fused_walk({name, _meta, context}, _pipes, env)
+  defp fused_walk({name, _meta, context}, _pipes, vars, env)
        when is_atom(name) and is_atom(context) do
-    if name in @special_vars do
-      {{name, [], context}, env}
-    else
-      key = {name, context}
+    cond do
+      name in @special_vars ->
+        {{name, [], context}, env}
 
-      case env do
-        %{^key => placeholder} ->
-          {{placeholder, [], context}, env}
+      not vars ->
+        {{name, [], context}, env}
 
-        _ ->
-          index = map_size(env)
-          placeholder = :"$#{index}"
-          {{placeholder, [], context}, Map.put(env, key, placeholder)}
-      end
+      true ->
+        key = {name, context}
+
+        case env do
+          %{^key => placeholder} ->
+            {{placeholder, [], context}, env}
+
+          _ ->
+            index = map_size(env)
+            placeholder = :"$#{index}"
+            {{placeholder, [], context}, Map.put(env, key, placeholder)}
+        end
     end
   end
 
   # Call node with boolean canonicalization
-  defp fused_walk({form, _meta, args}, pipes, env) when is_list(args) do
+  defp fused_walk({form, _meta, args}, pipes, vars, env) when is_list(args) do
     canonical_form = Map.get(@bool_canon, form, form)
-    {form_n, env} = fused_walk(canonical_form, pipes, env)
-    {args_n, env} = fused_walk_list(args, pipes, env)
+    {form_n, env} = fused_walk(canonical_form, pipes, vars, env)
+    {args_n, env} = fused_walk_list(args, pipes, vars, env)
     {{form_n, [], args_n}, env}
   end
 
   # Two-tuple (keyword pair, etc.)
-  defp fused_walk({left, right}, pipes, env) do
-    {left_n, env} = fused_walk(left, pipes, env)
-    {right_n, env} = fused_walk(right, pipes, env)
+  defp fused_walk({left, right}, pipes, vars, env) do
+    {left_n, env} = fused_walk(left, pipes, vars, env)
+    {right_n, env} = fused_walk(right, pipes, vars, env)
     {{left_n, right_n}, env}
   end
 
   # List
-  defp fused_walk(list, pipes, env) when is_list(list) do
-    fused_walk_list(list, pipes, env)
+  defp fused_walk(list, pipes, vars, env) when is_list(list) do
+    fused_walk_list(list, pipes, vars, env)
   end
 
   # Leaf (literal or atom) — pass through
-  defp fused_walk(leaf, _pipes, env), do: {leaf, env}
+  defp fused_walk(leaf, _pipes, _vars, env), do: {leaf, env}
 
-  defp fused_walk_list(list, pipes, env) do
+  defp fused_walk_list(list, pipes, vars, env) do
     {reversed, env} =
       Enum.reduce(list, {[], env}, fn node, {acc, env} ->
-        {n, env} = fused_walk(node, pipes, env)
+        {n, env} = fused_walk(node, pipes, vars, env)
         {[n | acc], env}
       end)
 
