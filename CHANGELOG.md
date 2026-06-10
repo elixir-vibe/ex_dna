@@ -11,6 +11,18 @@
 
 ### Fixed
 
+- **Nested pipe-chain noise** — nested pipe subtrees are now pruned using true
+  AST line ranges, so one duplicated pipe-heavy function reports as one clone
+  instead of several overlapping clones.
+- **Clone type labeling** — Type-I detection now preserves variable names and
+  literals, while Type-II handles renamed-variable clones and, in `:abstract`
+  literal mode, changed-literal clones.
+- **Incremental compiler cache** — cached fingerprints are now reused directly
+  for unchanged files, cache invalidation covers all fingerprint-affecting
+  options, and cache reads no longer fail in fresh BEAM VMs due to safe atom
+  deserialization.
+- **Type-III similarity normalization** — fuzzy clone scoring now respects the
+  configured normalizer options, including pipe normalization.
 - **Credo integration suppression** — suppression comments now work when ExDNA
   runs through Credo's cached ASTs by carrying source text alongside the AST.
 - **CI alias isolation** — `mix ci` now runs Credo, tests, Dialyzer, and ExDNA

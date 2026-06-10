@@ -36,7 +36,7 @@ macro, or a behaviour callback.
 - **Cross-file grouping** — `actions/ ↔ tools/ (6 clones, 298 nodes)`
   instead of listing each pair
 - **Credo-style suppression comments** — suppress known/intentional duplicates
-- **Incremental `Mix.Task.Compiler`** — only re-analyzes changed files
+- **Incremental `Mix.Task.Compiler`** — reuses cached fingerprints for unchanged files
 - **LSP server** — pushes clone diagnostics to your editor alongside
   [Expert](https://github.com/elixir-lang/expert) or ElixirLS
 - **Credo integration** — drop-in replacement for `DuplicatedCode`, reuses
@@ -61,7 +61,7 @@ end
 ```bash
 mix ex_dna                              # scan lib/
 mix ex_dna lib/accounts lib/admin       # specific paths
-mix ex_dna --literal-mode abstract      # enable Type-II (renamed vars)
+mix ex_dna --literal-mode abstract      # enable literal abstraction for Type-II
 mix ex_dna --min-similarity 0.85        # enable Type-III (near-miss)
 mix ex_dna --min-mass 50                # fewer, larger clones
 mix ex_dna --max-clones 10              # fail only above budget
@@ -111,7 +111,7 @@ Create `.ex_dna.exs` in your project root:
 | `min_mass` | `--min-mass` | `30` | Minimum AST nodes for a fragment |
 | `min_occurrences` | `--min-occurrences` | `2` | Minimum number of code occurrences to label a clone |
 | `min_similarity` | `--min-similarity` | `1.0` | Threshold for Type-III (set < 1.0 to enable) |
-| `literal_mode` | `--literal-mode` | `keep` | `keep` = Type-I only, `abstract` = also Type-II |
+| `literal_mode` | `--literal-mode` | `keep` | `keep` = exact + renamed-variable clones, `abstract` = also changed-literal clones |
 | `normalize_pipes` | `--normalize-pipes` | `false` | Treat `x \|> f()` same as `f(x)` |
 | `excluded_macros` | `--exclude-macro` | `[]` | Macro calls to skip entirely |
 | `ignored_attributes` | `--ignore-attribute` | *(see below)* | Module attribute names to skip |

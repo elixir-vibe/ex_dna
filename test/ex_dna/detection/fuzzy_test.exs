@@ -14,6 +14,19 @@ defmodule ExDNA.Detection.FuzzyTest do
     %{frag | line: line}
   end
 
+  defp synthetic_fragment(code, file) do
+    ast = Code.string_to_quoted!(code)
+
+    %{
+      hash: :crypto.hash(:sha256, code),
+      mass: Fingerprint.mass(ast),
+      ast: ast,
+      file: file,
+      line: 1,
+      sub_hashes: MapSet.new([:shared])
+    }
+  end
+
   describe "detect/3" do
     test "finds near-miss clones above threshold" do
       frag_a =
@@ -77,6 +90,36 @@ defmodule ExDNA.Detection.FuzzyTest do
       clones = Fuzzy.detect([frag_a, frag_b], 0.9, MapSet.new())
 
       assert clones == []
+    end
+
+    test "uses configured normalizer options for final similarity" do
+      frag_a =
+        synthetic_fragment(
+          """
+          data
+          |> Enum.map(fn x -> x * 2 end)
+          |> Enum.filter(fn x -> x > 10 end)
+          |> Enum.sort()
+          """,
+          "pipe.ex"
+        )
+
+      frag_b =
+        synthetic_fragment(
+          """
+          Enum.sort(Enum.filter(Enum.map(data, fn x -> x * 2 end), fn x -> x > 10 end))
+          """,
+          "nested.ex"
+        )
+
+      assert Fuzzy.detect([frag_a, frag_b], 0.95, MapSet.new()) == []
+
+      clones =
+        Fuzzy.detect([frag_a, frag_b], 0.95, MapSet.new(),
+          normalizer_opts: [normalize_pipes: true]
+        )
+
+      assert [_clone] = clones
     end
 
     test "ignores fragments at the same location" do
