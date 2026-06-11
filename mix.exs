@@ -69,6 +69,7 @@ defmodule ExDNA.MixProject do
         "format --check-formatted",
         "cmd mix credo --strict",
         "cmd mix test",
+        "cmd rm -f _build/dev/dialyxir_plt.plt _build/dev/dialyxir_plt.plt.hash _build/test/dialyxir_plt.plt _build/test/dialyxir_plt.plt.hash",
         "cmd mix dialyzer",
         "cmd mix ex_dna"
       ]
