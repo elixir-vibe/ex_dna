@@ -276,6 +276,17 @@ All ExDNA options are available as check/plugin params. By default the Credo che
 6. **Suggest** — anti-unify each clone pair to compute the common structure,
    generate extract-function/macro/behaviour suggestions
 
+## Part of Elixir Vibe
+
+ExDNA finds duplicated Elixir code by structure and computes the canonical extraction for each clone family.
+
+It is one building block of a larger stack — tools that make AI-generated
+software checkable: structural search, dependence analysis, duplication and
+slop detection, session replay, and ecosystem-wide code search. See the
+[Elixir Vibe](https://github.com/elixir-vibe) organization for the rest, and
+[Building Blocks for the Future Web](https://github.com/elixir-vibe/building-blocks)
+for the thesis, architecture, and roadmap that tie them together.
+
 ## License
 
 [MIT](LICENSE)
