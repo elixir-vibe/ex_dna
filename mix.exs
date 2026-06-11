@@ -1,7 +1,7 @@
 defmodule ExDNA.MixProject do
   use Mix.Project
 
-  @version "1.5.2"
+  @version "1.5.3"
   @source_url "https://github.com/elixir-vibe/ex_dna"
 
   def project do
