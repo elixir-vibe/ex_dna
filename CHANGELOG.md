@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.4
+
+### Changed
+
+- Lowered the declared minimum Elixir version from 1.19 to 1.18.
+
 ## 1.5.3
 
 ### Fixed
