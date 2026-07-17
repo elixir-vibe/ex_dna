@@ -21,16 +21,6 @@ defmodule ExDNA.Refactor.BehaviourSuggestionTest do
     {:def, [line: 1], [{name, [line: 1], args}, [do: {:ok, [], nil}]]}
   end
 
-  defp defp_ast(name, arity) do
-    args =
-      case arity do
-        0 -> nil
-        n -> Enum.map(1..n, fn i -> {:"arg#{i}", [line: 1], nil} end)
-      end
-
-    {:defp, [line: 1], [{name, [line: 1], args}, [do: {:ok, [], nil}]]}
-  end
-
   defp write_and_parse(dir, name, content) do
     path = Path.join(dir, name)
     File.write!(path, content)
