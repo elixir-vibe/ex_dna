@@ -10,17 +10,17 @@ defmodule Mix.Tasks.Compile.ExDna do
 
   use Mix.Task.Compiler
 
-  alias ExDNA.Cache
+  alias ExDNA.Config
 
   @impl true
   def run(argv), do: ExDNA.Compiler.run(argv)
 
   @impl true
-  def manifests, do: [Cache.default_path()]
+  def manifests, do: [Config.new([]).cache_path]
 
   @impl true
   def clean do
-    cache_path = Cache.default_path()
+    cache_path = Config.new([]).cache_path
     File.rm(cache_path)
     :ok
   end

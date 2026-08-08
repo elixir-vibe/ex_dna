@@ -16,6 +16,8 @@ defmodule ExDNA.ConfigTest do
       assert config.max_module_forms == 200
       assert config.min_fuzzy_mass == nil
       assert config.output_file == nil
+      assert config.cache == false
+      assert config.cache_path == ".ex_dna_cache"
     end
 
     test "overrides defaults with provided options" do
@@ -26,7 +28,9 @@ defmodule ExDNA.ConfigTest do
           excluded_macros: [:@, :schema],
           max_module_forms: 300,
           min_fuzzy_mass: 80,
-          output_file: "report.html"
+          output_file: "report.html",
+          cache: true,
+          cache_path: "tmp/cache"
         )
 
       assert config.min_mass == 10
@@ -35,6 +39,8 @@ defmodule ExDNA.ConfigTest do
       assert config.max_module_forms == 300
       assert config.min_fuzzy_mass == 80
       assert config.output_file == "report.html"
+      assert config.cache == true
+      assert config.cache_path == "tmp/cache"
     end
 
     test "loads config file when present" do

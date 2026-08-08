@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Incremental compiler registration** — `compilers: Mix.compilers() ++
+  [:ex_dna]` now resolves the documented `compile.ex_dna` task.
+- **Cache invalidation** — source digests detect same-timestamp edits, additions,
+  and removals, while all output-shaping detection options invalidate results.
+
+### Performance
+
+- **Complete-result cache** — unchanged compiler and opt-in CLI runs reuse the
+  prior clone groups without global detection or a large fragment-cache rewrite.
+
 ## 1.5.4
 
 ### Changed

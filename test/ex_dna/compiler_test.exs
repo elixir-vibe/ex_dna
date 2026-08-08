@@ -1,96 +1,68 @@
 defmodule ExDNA.CompilerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  alias ExDNA.{Cache, Config}
-  alias ExDNA.Detection.{Detector, Pipeline}
+  alias ExDNA.{Cache, Config, Incremental}
 
-  setup do
-    dir =
-      Path.join(System.tmp_dir!(), "ex_dna_compiler_test_#{:erlang.unique_integer([:positive])}")
-
-    File.mkdir_p!(dir)
-
+  @moduletag :tmp_dir
+  setup %{tmp_dir: dir} do
     cache_path = Path.join(dir, ".ex_dna_cache")
+    write_duplicate_files(dir)
 
-    on_exit(fn -> File.rm_rf!(dir) end)
-
-    {:ok, dir: dir, cache_path: cache_path}
+    config = Config.new(paths: [dir], reporters: [], min_mass: 5)
+    {:ok, cache_path: cache_path, config: config, dir: dir}
   end
 
-  describe "incremental pipeline with cache" do
-    test "cached ASTs enable full Type-I/II/III detection", %{dir: dir, cache_path: cache_path} do
-      write_duplicate_files(dir)
+  test "an unchanged analysis returns cached clone groups", %{
+    cache_path: cache_path,
+    config: config
+  } do
+    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert clones != []
 
-      config = Config.new(paths: [dir], reporters: [], min_mass: 5)
-      files = Pipeline.collect_files(config)
+    assert {:noop, ^clones, 2} = Incremental.run(config, cache_path: cache_path)
+  end
 
-      fresh_entries =
-        Map.new(files, fn file ->
-          with {:ok, source} <- File.read(file),
-               {:ok, ast} <- Pipeline.parse_with_timeout(source, file, config.parse_timeout) do
-            fragments = %{
-              type_i:
-                Pipeline.fingerprint_ast(
-                  ast,
-                  file,
-                  config
-                  |> Map.from_struct()
-                  |> Map.merge(%{literal_mode: :keep, normalize_variables: false})
-                ),
-              type_ii:
-                Pipeline.fingerprint_ast(
-                  ast,
-                  file,
-                  config
-                  |> Map.from_struct()
-                  |> Map.merge(%{normalize_variables: true})
-                )
-            }
+  test "same-mtime content changes refresh analysis", %{
+    cache_path: cache_path,
+    config: config,
+    dir: dir
+  } do
+    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert clones != []
 
-            {file, Cache.build_entry(file, fragments, ast)}
-          end
-        end)
+    file = Path.join(dir, "dup_b.ex")
+    mtime = File.stat!(file, time: :posix).mtime
+    File.write!(file, "defmodule Unique, do: nil")
+    File.touch!(file, mtime)
 
-      Cache.write(fresh_entries, cache_path)
+    assert {:ok, [], 2} = Incremental.run(config, cache_path: cache_path)
+  end
 
-      cached = Cache.read(cache_path)
+  test "removed files refresh analysis", %{cache_path: cache_path, config: config, dir: dir} do
+    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert clones != []
 
-      file_ast_pairs =
-        Enum.flat_map(cached, fn {file, entry} ->
-          case entry do
-            %{ast: ast} when ast != nil -> [{file, ast}]
-            _ -> []
-          end
-        end)
+    File.rm!(Path.join(dir, "dup_b.ex"))
 
-      type_i_fragments = Enum.flat_map(cached, fn {_file, entry} -> entry.fragments.type_i end)
-      type_ii_fragments = Enum.flat_map(cached, fn {_file, entry} -> entry.fragments.type_ii end)
+    assert {:ok, [], 1} = Incremental.run(config, cache_path: cache_path)
+  end
 
-      clones =
-        Detector.run_from_fragments(config, type_i_fragments, type_ii_fragments, file_ast_pairs)
+  test "force refreshes an unchanged analysis", %{cache_path: cache_path, config: config} do
+    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, refreshed, 2} = Incremental.run(config, cache_path: cache_path, force: true)
 
-      assert clones != []
-    end
+    assert clone_signatures(refreshed) == clone_signatures(clones)
+  end
 
-    test "cache entries include ASTs", %{dir: dir} do
-      file = Path.join(dir, "test.ex")
+  test "cache stores clone results and source digests", %{
+    cache_path: cache_path,
+    config: config
+  } do
+    assert {:ok, _clones, 2} = Incremental.run(config, cache_path: cache_path)
 
-      File.write!(file, """
-      defmodule Test do
-        def foo(x), do: x + 1
-      end
-      """)
-
-      config = Config.new(paths: [dir], reporters: [], min_mass: 5)
-
-      {:ok, source} = File.read(file)
-      {:ok, ast} = Pipeline.parse_with_timeout(source, file, config.parse_timeout)
-      frags = Pipeline.fingerprint_ast(ast, file, config)
-
-      entry = Cache.build_entry(file, %{type_i: frags, type_ii: frags}, ast)
-      assert entry.ast != nil
-      assert is_tuple(entry.ast)
-    end
+    cached = Cache.read(cache_path, Cache.config_hash(config))
+    assert cached.clones != []
+    assert map_size(cached.digests) == 2
   end
 
   defp write_duplicate_files(dir) do
@@ -107,5 +79,11 @@ defmodule ExDNA.CompilerTest do
       end
       """)
     end
+  end
+
+  defp clone_signatures(clones) do
+    clones
+    |> Enum.map(&{&1.type, &1.mass})
+    |> Enum.sort()
   end
 end

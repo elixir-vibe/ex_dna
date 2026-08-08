@@ -34,7 +34,7 @@ defmodule ExDNA do
   See the README for the full option reference.
   """
 
-  alias ExDNA.{Config, Detection, Report}
+  alias ExDNA.{Config, Detection, Incremental, Report}
 
   @type path_or_paths :: String.t() | [String.t()]
 
@@ -51,6 +51,8 @@ defmodule ExDNA do
     * `:min_similarity` — similarity threshold 0.0–1.0 (default: `#{Config.default(:min_similarity)}`)
     * `:ignore` — list of glob patterns to exclude
     * `:reporters` — list of reporter modules (default: `[ExDNA.Reporter.Console]`)
+    * `:cache` — reuse incremental analysis results when sources are unchanged
+    * `:cache_path` — incremental cache location (default: `.ex_dna_cache`)
 
   ## Examples
 
@@ -74,11 +76,19 @@ defmodule ExDNA do
   defp do_analyze(opts) do
     config = Config.new(opts)
 
-    {elapsed_us, {clones, files_analyzed}} = :timer.tc(fn -> Detection.Detector.run(config) end)
+    {elapsed_us, {clones, files_analyzed}} =
+      :timer.tc(fn -> analyze_with_config(config) end)
 
     Report.new(clones, config,
       detection_time_ms: div(elapsed_us, 1000),
       files_analyzed: files_analyzed
     )
   end
+
+  defp analyze_with_config(%Config{cache: true} = config) do
+    {_status, clones, files_analyzed} = Incremental.run(config)
+    {clones, files_analyzed}
+  end
+
+  defp analyze_with_config(config), do: Detection.Detector.run(config)
 end
