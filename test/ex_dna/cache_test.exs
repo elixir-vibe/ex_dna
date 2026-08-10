@@ -17,6 +17,14 @@ defmodule ExDNA.CacheTest do
       assert Cache.read(path) == state
     end
 
+    test "creates the cache directory", %{tmp_dir: dir} do
+      path = Path.join([dir, "nested", "cache", "results"])
+      state = %{digests: %{}, clones: []}
+
+      assert :ok = Cache.write(state, path)
+      assert Cache.read(path) == state
+    end
+
     test "returns empty state when the file does not exist", %{cache_path: path} do
       assert Cache.read(path) == %{digests: %{}, clones: nil}
     end

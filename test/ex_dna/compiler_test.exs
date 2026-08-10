@@ -65,6 +65,14 @@ defmodule ExDNA.CompilerTest do
     assert map_size(cached.digests) == 2
   end
 
+  test "cache write failures do not fail analysis", %{config: config, dir: dir} do
+    cache_path = Path.join(dir, "cache_directory")
+    File.mkdir_p!(cache_path)
+
+    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert clones != []
+  end
+
   defp write_duplicate_files(dir) do
     for name <- ~w(dup_a.ex dup_b.ex) do
       File.write!(Path.join(dir, name), """

@@ -34,7 +34,7 @@ defmodule ExDNA.Incremental do
       {:noop, cached.clones, length(files)}
     else
       {clones, files_analyzed} = Detector.run(config)
-      :ok = Cache.write(%{digests: current_digests, clones: clones}, cache_path, config_hash)
+      Cache.write(%{digests: current_digests, clones: clones}, cache_path, config_hash)
       {:ok, clones, files_analyzed}
     end
   end

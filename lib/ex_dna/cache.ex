@@ -47,7 +47,9 @@ defmodule ExDNA.Cache do
         [:compressed]
       )
 
-    File.write(path, binary)
+    with :ok <- File.mkdir_p(Path.dirname(path)) do
+      File.write(path, binary)
+    end
   end
 
   @doc """
