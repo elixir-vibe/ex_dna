@@ -1,7 +1,8 @@
-defmodule ExDNA.CompilerTest do
+defmodule ExDNA.Detection.CachedDetectorTest do
   use ExUnit.Case, async: true
 
-  alias ExDNA.{Cache, Config, Incremental}
+  alias ExDNA.{Cache, Config}
+  alias ExDNA.Detection.CachedDetector
 
   @moduletag :tmp_dir
   setup %{tmp_dir: dir} do
@@ -16,10 +17,10 @@ defmodule ExDNA.CompilerTest do
     cache_path: cache_path,
     config: config
   } do
-    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, clones, 2} = CachedDetector.run(config, cache_path: cache_path)
     assert clones != []
 
-    assert {:noop, ^clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:noop, ^clones, 2} = CachedDetector.run(config, cache_path: cache_path)
   end
 
   test "same-mtime content changes refresh analysis", %{
@@ -27,7 +28,7 @@ defmodule ExDNA.CompilerTest do
     config: config,
     dir: dir
   } do
-    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, clones, 2} = CachedDetector.run(config, cache_path: cache_path)
     assert clones != []
 
     file = Path.join(dir, "dup_b.ex")
@@ -35,21 +36,21 @@ defmodule ExDNA.CompilerTest do
     File.write!(file, "defmodule Unique, do: nil")
     File.touch!(file, mtime)
 
-    assert {:ok, [], 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, [], 2} = CachedDetector.run(config, cache_path: cache_path)
   end
 
   test "removed files refresh analysis", %{cache_path: cache_path, config: config, dir: dir} do
-    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, clones, 2} = CachedDetector.run(config, cache_path: cache_path)
     assert clones != []
 
     File.rm!(Path.join(dir, "dup_b.ex"))
 
-    assert {:ok, [], 1} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, [], 1} = CachedDetector.run(config, cache_path: cache_path)
   end
 
   test "force refreshes an unchanged analysis", %{cache_path: cache_path, config: config} do
-    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
-    assert {:ok, refreshed, 2} = Incremental.run(config, cache_path: cache_path, force: true)
+    assert {:ok, clones, 2} = CachedDetector.run(config, cache_path: cache_path)
+    assert {:ok, refreshed, 2} = CachedDetector.run(config, cache_path: cache_path, force: true)
 
     assert clone_signatures(refreshed) == clone_signatures(clones)
   end
@@ -58,7 +59,7 @@ defmodule ExDNA.CompilerTest do
     cache_path: cache_path,
     config: config
   } do
-    assert {:ok, _clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, _clones, 2} = CachedDetector.run(config, cache_path: cache_path)
 
     cached = Cache.read(cache_path, Cache.config_hash(config))
     assert cached.clones != []
@@ -69,7 +70,7 @@ defmodule ExDNA.CompilerTest do
     cache_path = Path.join(dir, "cache_directory")
     File.mkdir_p!(cache_path)
 
-    assert {:ok, clones, 2} = Incremental.run(config, cache_path: cache_path)
+    assert {:ok, clones, 2} = CachedDetector.run(config, cache_path: cache_path)
     assert clones != []
   end
 

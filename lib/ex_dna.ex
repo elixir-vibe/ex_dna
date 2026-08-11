@@ -34,7 +34,8 @@ defmodule ExDNA do
   See the README for the full option reference.
   """
 
-  alias ExDNA.{Config, Detection, Incremental, Report}
+  alias ExDNA.{Config, Detection, Report}
+  alias ExDNA.Detection.CachedDetector
 
   @type path_or_paths :: String.t() | [String.t()]
 
@@ -86,7 +87,7 @@ defmodule ExDNA do
   end
 
   defp analyze_with_config(%Config{cache: true} = config) do
-    {_status, clones, files_analyzed} = Incremental.run(config)
+    {_status, clones, files_analyzed} = CachedDetector.run(config)
     {clones, files_analyzed}
   end
 

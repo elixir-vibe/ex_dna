@@ -19,13 +19,14 @@ defmodule ExDNA.Compiler do
 
   use Mix.Task.Compiler
 
-  alias ExDNA.{Config, Incremental}
+  alias ExDNA.Config
+  alias ExDNA.Detection.CachedDetector
 
   @impl true
   def run(argv) do
     config = Config.new([])
     force? = "--force" in argv or "--force-ex_dna" in argv
-    {status, clones, _files_analyzed} = Incremental.run(config, force: force?)
+    {status, clones, _files_analyzed} = CachedDetector.run(config, force: force?)
     {status, diagnostics(clones)}
   end
 

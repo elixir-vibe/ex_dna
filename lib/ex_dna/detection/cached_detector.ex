@@ -1,24 +1,23 @@
-defmodule ExDNA.Incremental do
+defmodule ExDNA.Detection.CachedDetector do
   @moduledoc """
-  Cached clone analysis shared by the Mix compiler and opt-in CLI cache.
+  Adds complete-result caching to clone detection.
 
   Unchanged runs return the previously detected clone groups without rerunning
-  detection. When any source changes, normal full analysis refreshes the result;
+  detection. When any source changes, normal full detection refreshes the result;
   this avoids a large fragment cache whose serialization cost exceeded the work
   it saved.
   """
 
   alias ExDNA.{Cache, Config}
-  alias ExDNA.Detection.Detector
-  alias ExDNA.Detection.Pipeline
+  alias ExDNA.Detection.{Detector, Pipeline}
 
   @type status :: :ok | :noop
   @type result :: {status(), [ExDNA.Detection.Clone.t()], non_neg_integer()}
 
   @doc """
-  Run cached analysis for `config`.
+  Run cached detection for `config`.
 
-  Pass `:force` to refresh analysis even when every source digest is current,
+  Pass `:force` to refresh detection even when every source digest is current,
   and `:cache_path` to override the configured cache location.
   """
   @spec run(Config.t(), keyword()) :: result()
