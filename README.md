@@ -36,7 +36,7 @@ macro, or a behaviour callback.
 - **Cross-file grouping** — `actions/ ↔ tools/ (6 clones, 298 nodes)`
   instead of listing each pair
 - **Credo-style suppression comments** — suppress known/intentional duplicates
-- **Incremental `Mix.Task.Compiler`** — reuses cached fingerprints for unchanged files
+- **Incremental `Mix.Task.Compiler`** — reuses complete results when sources are unchanged
 - **LSP server** — pushes clone diagnostics to your editor alongside
   [Expert](https://github.com/elixir-lang/expert) or ElixirLS
 - **Credo integration** — drop-in replacement for `DuplicatedCode`, reuses
@@ -67,6 +67,7 @@ mix ex_dna --min-fuzzy-mass 80          # require larger Type-III candidates
 mix ex_dna --min-mass 50                # fewer, larger clones
 mix ex_dna --max-clones 10              # fail only above budget
 mix ex_dna --format json                # machine-readable
+mix ex_dna --cache --format json        # reuse unchanged analysis results
 mix ex_dna --format html                # browsable report
 mix ex_dna --format sarif               # GitHub Code Scanning
 ```
@@ -192,8 +193,17 @@ def project do
 end
 ```
 
-Only changed files are re-analyzed. Cache is stored in `.ex_dna_cache` (add to
-`.gitignore`).
+Source digests validate the cached result. When no source changed, ExDNA returns
+the previous clone groups without rewriting the cache or rerunning detection.
+When a source changes, ExDNA reruns normal analysis and replaces the result.
+The cache is stored in `.ex_dna_cache` (add it to `.gitignore`).
+
+The same cache is available to standalone checks while preserving all output
+formats and explicit paths:
+
+```bash
+mix ex_dna lib/ test/ --cache --format json
+```
 
 ## Editor integration
 

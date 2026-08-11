@@ -54,7 +54,9 @@ defmodule ExDNA.Config do
     excluded_macros: [],
     ignored_attributes: Map.keys(Module.reserved_attributes()),
     parse_timeout: 5_000,
-    output_file: nil
+    output_file: nil,
+    cache: false,
+    cache_path: ".ex_dna_cache"
   }
 
   defstruct Map.keys(@defaults)
@@ -76,7 +78,9 @@ defmodule ExDNA.Config do
           excluded_macros: [atom()],
           ignored_attributes: [atom()],
           parse_timeout: pos_integer(),
-          output_file: String.t() | nil
+          output_file: String.t() | nil,
+          cache: boolean(),
+          cache_path: String.t()
         }
 
   @spec new(keyword()) :: t()
@@ -104,6 +108,15 @@ defmodule ExDNA.Config do
     validate_int_gte!(:max_module_forms, config.max_module_forms, 2)
     validate_float_range_exclusive_min!(:mass_tolerance, config.mass_tolerance, 0.0, 1.0)
     validate_optional_pos_int!(:min_fuzzy_mass, config.min_fuzzy_mass)
+
+    unless is_boolean(config.cache) do
+      raise ArgumentError, "cache must be a boolean, got: #{inspect(config.cache)}"
+    end
+
+    unless is_binary(config.cache_path) and config.cache_path != "" do
+      raise ArgumentError,
+            "cache_path must be a non-empty string, got: #{inspect(config.cache_path)}"
+    end
 
     unless config.literal_mode in [:keep, :abstract] do
       raise ArgumentError,

@@ -34,6 +34,7 @@ defmodule Mix.Tasks.ExDna do
     * `--output` — output file for `html` or `sarif` reports
     * `--max-clones` — maximum allowed clones. Exits with code 1 only when
       exceeded. Useful for gradual adoption in brownfield projects.
+    * `--cache` — reuse cached clone results when all source digests are unchanged.
 
   Exits with code 1 if clones are found (or exceed `--max-clones`).
   """
@@ -61,7 +62,8 @@ defmodule Mix.Tasks.ExDna do
           ignore: :keep,
           format: :string,
           output: :string,
-          max_clones: :integer
+          max_clones: :integer,
+          cache: :boolean
         ],
         aliases: [m: :min_mass, o: :min_occurrences, s: :min_similarity, i: :ignore, f: :format]
       )
@@ -122,6 +124,7 @@ defmodule Mix.Tasks.ExDna do
     |> Options.maybe_put(:max_module_forms, Keyword.get(opts, :max_module_forms))
     |> Options.maybe_put(:mass_tolerance, Keyword.get(opts, :mass_tolerance))
     |> Options.maybe_put(:min_fuzzy_mass, Keyword.get(opts, :min_fuzzy_mass))
+    |> Options.maybe_put(:cache, Options.explicit_value(opts, :cache))
     |> Options.maybe_put(:excluded_macros, Options.excluded_macros(opts))
     |> Options.maybe_put(:ignored_attributes, Options.ignored_attributes(opts))
     |> Options.maybe_put(:output_file, Keyword.get(opts, :output))

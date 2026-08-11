@@ -69,6 +69,34 @@ defmodule Mix.Tasks.ExDnaTest do
     assert Exception.message(error) =~ "Invalid format"
   end
 
+  test "cached JSON preserves clone groups and explicit paths", %{dir: dir} do
+    write_duplicate_pair(dir)
+
+    {first, second} =
+      File.cd!(dir, fn ->
+        argv = [
+          "--cache",
+          "--format",
+          "json",
+          "--min-mass",
+          "5",
+          "--max-clones",
+          "10",
+          dir
+        ]
+
+        {capture_io(fn -> ExDna.run(argv) end), capture_io(fn -> ExDna.run(argv) end)}
+      end)
+
+    first = Jason.decode!(first)
+    second = Jason.decode!(second)
+
+    assert first["clones"] != []
+    assert second["clones"] == first["clones"]
+    assert second["stats"]["files_analyzed"] == 2
+    assert File.regular?(Path.join(dir, ".ex_dna_cache"))
+  end
+
   test "raises a Mix error for invalid explain option" do
     error =
       assert_raise Error, fn ->
