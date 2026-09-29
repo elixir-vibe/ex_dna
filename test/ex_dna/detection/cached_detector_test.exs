@@ -95,4 +95,55 @@ defmodule ExDNA.Detection.CachedDetectorTest do
     |> Enum.map(&{&1.type, &1.mass})
     |> Enum.sort()
   end
+
+  describe "run_on_pairs/3" do
+    test "an unchanged analysis returns cached clone groups", %{
+      cache_path: cache_path,
+      config: config,
+      dir: dir
+    } do
+      pairs = read_pairs(dir)
+
+      assert {:ok, clones, 2} = CachedDetector.run_on_pairs(config, pairs, cache_path: cache_path)
+      assert clones != []
+
+      assert {:noop, ^clones, 2} =
+               CachedDetector.run_on_pairs(config, pairs, cache_path: cache_path)
+    end
+
+    test "a changed source refreshes analysis", %{
+      cache_path: cache_path,
+      config: config,
+      dir: dir
+    } do
+      assert {:ok, clones, 2} =
+               CachedDetector.run_on_pairs(config, read_pairs(dir), cache_path: cache_path)
+
+      assert clones != []
+
+      File.write!(Path.join(dir, "dup_b.ex"), "defmodule Unique, do: nil")
+
+      assert {:ok, [], 2} =
+               CachedDetector.run_on_pairs(config, read_pairs(dir), cache_path: cache_path)
+    end
+
+    test "shares cache entries with filesystem runs over the same sources", %{
+      cache_path: cache_path,
+      config: config,
+      dir: dir
+    } do
+      assert {:ok, clones, 2} = CachedDetector.run(config, cache_path: cache_path)
+
+      assert {:noop, ^clones, 2} =
+               CachedDetector.run_on_pairs(config, read_pairs(dir), cache_path: cache_path)
+    end
+
+    defp read_pairs(dir) do
+      for name <- ~w(dup_a.ex dup_b.ex) do
+        file = Path.join(dir, name)
+        source = File.read!(file)
+        {file, Code.string_to_quoted!(source, columns: true), source}
+      end
+    end
+  end
 end

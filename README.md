@@ -266,14 +266,24 @@ All ExDNA options are available as check/plugin params. By default the Credo che
   literal_mode: :abstract,
   excluded_macros: [:schema, :pipe_through],
   normalize_pipes: true,
-  min_similarity: 0.85
+  min_similarity: 0.85,
+  cache: true
 ]}
 ```
+
+With `cache: true` the check reuses the previous clone result while no analyzed
+source changed, so `mix credo` no longer re-fingerprints the whole tree on every
+run. The cache file (`cache_path`, default `.ex_dna_cache`) is shared with
+`mix ex_dna --cache` and the incremental compiler.
+
+Each file is analyzed in an isolated task. If analysis of one file crashes,
+`on_error: :warn` (the default) prints a warning, skips that file, and lets the
+rest of the run finish; `on_error: :raise` fails the check instead.
 
 ## How it works
 
 1. **Parse** — `Code.string_to_quoted/2` on every `.ex`/`.exs` file (parallel,
-   with per-file timeout)
+   isolated per file, with a `parse_timeout` guard)
 2. **Normalize** — strip line/column metadata → rename variables to positional
    placeholders (`$0`, `$1`) → optionally abstract literals → optionally
    flatten pipes → sort struct/map fields

@@ -781,4 +781,90 @@ defmodule ExDNA.Detection.DetectorTest do
       assert length(custom_clones) == 1
     end
   end
+
+  describe "per-file failure isolation" do
+    import ExUnit.CaptureIO
+
+    @dup_a """
+    defmodule IsoA do
+      def process(data) do
+        data
+        |> Enum.map(fn x -> x * 2 end)
+        |> Enum.filter(fn x -> x > 10 end)
+        |> Enum.sort()
+        |> Enum.take(5)
+      end
+    end
+    """
+
+    @dup_b """
+    defmodule IsoB do
+      def process(data) do
+        data
+        |> Enum.map(fn x -> x * 2 end)
+        |> Enum.filter(fn x -> x > 10 end)
+        |> Enum.sort()
+        |> Enum.take(5)
+      end
+    end
+    """
+
+    # A nil source makes suppression scanning raise inside the task for that
+    # file only; the AST itself is valid so parsing is not what fails.
+    defp pairs_with_crashing_file do
+      ast = Code.string_to_quoted!(@dup_a, columns: true)
+
+      [
+        {"iso_a.ex", ast, @dup_a},
+        {"iso_b.ex", Code.string_to_quoted!(@dup_b, columns: true), @dup_b},
+        {"broken.ex", ast, nil}
+      ]
+    end
+
+    test "on_error: :warn skips the failing file, warns, and keeps the other results" do
+      config = Config.new(paths: [], reporters: [], min_mass: 5, on_error: :warn)
+
+      {{clones, files_analyzed}, output} =
+        with_io(:stderr, fn -> Detector.run(config, pairs_with_crashing_file()) end)
+
+      assert output =~ "warning: ExDNA skipped broken.ex"
+      assert output =~ "FunctionClauseError"
+      assert files_analyzed == 3
+      assert clones != []
+
+      files = clones |> Enum.flat_map(& &1.fragments) |> Enum.map(& &1.file) |> Enum.uniq()
+      assert Enum.sort(files) == ["iso_a.ex", "iso_b.ex"]
+    end
+
+    test "on_error: :raise raises an AnalysisError naming the file" do
+      config = Config.new(paths: [], reporters: [], min_mass: 5, on_error: :raise)
+
+      error =
+        assert_raise ExDNA.Detection.AnalysisError, fn ->
+          Detector.run(config, pairs_with_crashing_file())
+        end
+
+      assert error.file == "broken.ex"
+      assert Exception.message(error) =~ "ExDNA failed to analyze broken.ex"
+      assert Exception.message(error) =~ "FunctionClauseError"
+    end
+
+    test "a file whose parse exceeds parse_timeout is skipped, not fatal", %{dir: dir} do
+      write_fixture(dir, "a.ex", @dup_a)
+      write_fixture(dir, "b.ex", @dup_b)
+
+      big =
+        "defmodule Big do\n" <>
+          Enum.map_join(1..3000, "\n", &"  def f#{&1}(x), do: x + #{&1}") <>
+          "\nend\n"
+
+      write_fixture(dir, "big.ex", big)
+
+      config = Config.new(paths: [dir], reporters: [], min_mass: 5, parse_timeout: 1)
+      {clones, files_analyzed} = Detector.run(config)
+
+      assert files_analyzed <= 3
+      assert Enum.any?(clones, fn c -> Enum.any?(c.fragments, &(&1.file =~ "a.ex")) end)
+    end
+  end
 end

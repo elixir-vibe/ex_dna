@@ -1,7 +1,9 @@
 defmodule ExDNA.CredoTest do
   use Credo.Test.Case
 
+  alias Credo.Service.SourceFileSource
   alias ExDNA.Credo, as: Check
+  alias ExDNA.Detection.AnalysisError
 
   setup_all do
     Application.ensure_all_started(:credo)
@@ -250,5 +252,56 @@ defmodule ExDNA.CredoTest do
 
     refute Enum.any?(issues, &(&1.line_no == 0))
     refute Enum.any?(issues, &String.contains?(&1.message, "also in ."))
+  end
+
+  describe "cache param" do
+    @describetag :tmp_dir
+
+    test "reuses the previous result and still maps issues to source files", %{tmp_dir: dir} do
+      cache_path = Path.join(dir, ".ex_dna_cache")
+      sources = [to_source_file(@duplicate_a, "a.ex"), to_source_file(@duplicate_b, "b.ex")]
+      params = [paths: [], min_mass: 5, cache: true, cache_path: cache_path]
+
+      first = run_check(sources, Check, params)
+      assert length(first) >= 2
+      assert File.exists?(cache_path)
+
+      second = run_check(sources, Check, params)
+
+      assert Enum.map(second, &{&1.filename, &1.line_no}) ==
+               Enum.map(first, &{&1.filename, &1.line_no})
+    end
+  end
+
+  describe "on_error param" do
+    # Credo keeps source text in ETS; storing nil there makes analysis of that
+    # one file crash while the AST is still valid, exercising isolation.
+    defp broken_source_file do
+      source_file = to_source_file("defmodule Broken, do: nil", "broken.ex")
+      SourceFileSource.put(source_file, nil)
+      source_file
+    end
+
+    test ":warn skips a file whose analysis crashes and reports the rest" do
+      broken = broken_source_file()
+
+      {issues, output} =
+        ExUnit.CaptureIO.with_io(:stderr, fn ->
+          [to_source_file(@duplicate_a, "a.ex"), to_source_file(@duplicate_b, "b.ex"), broken]
+          |> run_check(Check, paths: [], min_mass: 5)
+        end)
+
+      assert output =~ "ExDNA skipped broken.ex"
+      assert length(issues) >= 2
+    end
+
+    test ":raise fails the check with the offending file" do
+      broken = broken_source_file()
+
+      assert_raise AnalysisError, ~r/broken\.ex/, fn ->
+        [to_source_file(@duplicate_a, "a.ex"), broken]
+        |> run_check(Check, paths: [], min_mass: 5, on_error: :raise)
+      end
+    end
   end
 end

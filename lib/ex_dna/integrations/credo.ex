@@ -40,8 +40,14 @@ if Code.ensure_loaded?(Credo.Check) do
           literal_mode: :abstract,
           excluded_macros: [:schema, :pipe_through],
           normalize_pipes: true,
-          min_similarity: 0.85
+          min_similarity: 0.85,
+          cache: true
         ]}
+
+    With `cache: true` an unchanged source tree reuses the previous clone
+    result instead of re-fingerprinting every file on each `mix credo` run.
+    The cache file defaults to `.ex_dna_cache` and is shared with `mix ex_dna
+    --cache` and the incremental compiler.
     """
 
     use Credo.Check,
@@ -58,7 +64,10 @@ if Code.ensure_loaded?(Credo.Check) do
         normalize_pipes: false,
         min_similarity: 1.0,
         paths: ExDNA.Config.default(:paths),
-        ignore: ExDNA.Config.default(:ignore)
+        ignore: ExDNA.Config.default(:ignore),
+        on_error: ExDNA.Config.default(:on_error),
+        cache: ExDNA.Config.default(:cache),
+        cache_path: ExDNA.Config.default(:cache_path)
       ],
       explanations: [
         check: """
@@ -87,7 +96,11 @@ if Code.ensure_loaded?(Credo.Check) do
           min_similarity:
             "Similarity threshold for near-miss clones (0.0–1.0). Values below 1.0 enable Type-III detection.",
           paths: "Files or directories to analyze. Defaults to ExDNA's CLI default: lib/.",
-          ignore: "Glob patterns to exclude from analysis."
+          ignore: "Glob patterns to exclude from analysis.",
+          on_error:
+            "`:warn` skips a file whose analysis crashes and prints a warning; `:raise` fails the check instead.",
+          cache: "When `true`, reuse the previous clone result while no analyzed source changed.",
+          cache_path: "Location of the result cache file."
         ]
       ]
 
@@ -125,14 +138,14 @@ if Code.ensure_loaded?(Credo.Check) do
 
     alias Credo.Execution.ExecutionIssues
     alias ExDNA.Config
-    alias ExDNA.Detection.{Detector, Pipeline}
+    alias ExDNA.Detection.{CachedDetector, Detector, Pipeline}
 
     @doc false
     @impl true
     def run_on_all_source_files(exec, source_files, params) do
       config = build_config(params)
       source_files = filter_source_files(source_files, config)
-      source_file_index = Map.new(source_files, &{&1.filename, &1})
+      source_file_index = Map.new(source_files, &{Path.expand(&1.filename), &1})
 
       file_ast_pairs =
         source_files
@@ -142,16 +155,25 @@ if Code.ensure_loaded?(Credo.Check) do
         end)
 
       config
-      |> Detector.run(file_ast_pairs)
-      |> elem(0)
+      |> detect(file_ast_pairs)
       |> Enum.each(&append_issues(&1, exec, source_file_index, params))
 
       :ok
     end
 
+    defp detect(%Config{cache: true} = config, file_ast_pairs) do
+      {_status, clones, _files_analyzed} = CachedDetector.run_on_pairs(config, file_ast_pairs)
+      clones
+    end
+
+    defp detect(config, file_ast_pairs) do
+      {clones, _files_analyzed} = Detector.run(config, file_ast_pairs)
+      clones
+    end
+
     defp append_issues(clone, exec, source_file_index, params) do
       for frag <- clone.fragments,
-          source_file = source_file_index[frag.file],
+          source_file = source_file_index[Path.expand(frag.file)],
           source_file != nil,
           others = other_locations(clone.fragments, frag),
           others != [] do
@@ -194,7 +216,10 @@ if Code.ensure_loaded?(Credo.Check) do
         normalize_pipes: Params.get(params, :normalize_pipes, __MODULE__),
         min_similarity: Params.get(params, :min_similarity, __MODULE__),
         paths: Params.get(params, :paths, __MODULE__),
-        ignore: Params.get(params, :ignore, __MODULE__)
+        ignore: Params.get(params, :ignore, __MODULE__),
+        on_error: Params.get(params, :on_error, __MODULE__),
+        cache: Params.get(params, :cache, __MODULE__),
+        cache_path: Params.get(params, :cache_path, __MODULE__)
       )
     end
 

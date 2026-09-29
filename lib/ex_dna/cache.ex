@@ -77,10 +77,20 @@ defmodule ExDNA.Cache do
   @spec file_digest(String.t()) :: binary() | nil
   def file_digest(file) do
     case File.read(file) do
-      {:ok, source} -> :crypto.hash(:sha256, source)
+      {:ok, source} -> source_digest(source)
       {:error, _reason} -> nil
     end
   end
+
+  @doc """
+  Get a SHA-256 digest of already-loaded source text.
+
+  Equal to `file_digest/1` of the file the text was read from, so results
+  cached from in-memory sources (e.g. Credo's) validate against the same
+  digests a filesystem run computes.
+  """
+  @spec source_digest(String.t()) :: binary()
+  def source_digest(source) when is_binary(source), do: :crypto.hash(:sha256, source)
 
   defp safe_binary_to_term(binary) do
     {:ok, :erlang.binary_to_term(binary)}
