@@ -35,6 +35,10 @@ defmodule ExDNA.Config do
       the larger. Raise toward `0.5` to catch clones between thin wrappers
       and fat implementations. Must be in `(0.0, 1.0]`. Default: `0.3`.
 
+    * `:on_error` — what to do when analysis of a single file crashes.
+      `:warn` prints a warning to stderr, skips the file, and continues;
+      `:raise` raises `ExDNA.Detection.AnalysisError` naming the file.
+      Default: `:warn`.
 
   """
 
@@ -54,6 +58,7 @@ defmodule ExDNA.Config do
     excluded_macros: [],
     ignored_attributes: Map.keys(Module.reserved_attributes()),
     parse_timeout: 5_000,
+    on_error: :warn,
     output_file: nil,
     cache: false,
     cache_path: ".ex_dna_cache"
@@ -62,6 +67,7 @@ defmodule ExDNA.Config do
   defstruct Map.keys(@defaults)
 
   @type literal_mode :: :keep | :abstract
+  @type on_error :: :warn | :raise
   @type t :: %__MODULE__{
           paths: [String.t()],
           min_mass: pos_integer(),
@@ -78,6 +84,7 @@ defmodule ExDNA.Config do
           excluded_macros: [atom()],
           ignored_attributes: [atom()],
           parse_timeout: pos_integer(),
+          on_error: on_error(),
           output_file: String.t() | nil,
           cache: boolean(),
           cache_path: String.t()
@@ -121,6 +128,11 @@ defmodule ExDNA.Config do
     unless config.literal_mode in [:keep, :abstract] do
       raise ArgumentError,
             "literal_mode must be :keep or :abstract, got: #{inspect(config.literal_mode)}"
+    end
+
+    unless config.on_error in [:warn, :raise] do
+      raise ArgumentError,
+            "on_error must be :warn or :raise, got: #{inspect(config.on_error)}"
     end
   end
 

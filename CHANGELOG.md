@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- **Credo runs no longer abort under load** — per-file parsing and
+  fingerprinting ran under `Task.async_stream`'s default 5 s wall-clock budget,
+  so a saturated machine (e.g. `mix credo` running its own checks in parallel)
+  could exit the whole run with `Task.Supervised.stream(5000) ... time out`.
+  Both streams are now unbounded; `parse_timeout` remains the single budget for
+  parsing and its graceful skip is reachable again (#14).
+- **Per-file crash isolation** — each file is analyzed in an unlinked task.
+  A crash in one file is reported for that file and, by default, skipped with
+  a warning (`on_error: :warn`); `on_error: :raise` fails the run with
+  `ExDNA.Detection.AnalysisError` naming the file.
+
 - **Incremental compiler registration** — `compilers: Mix.compilers() ++
   [:ex_dna]` now resolves the documented `compile.ex_dna` task.
 - **Cache invalidation** — source digests detect same-timestamp edits, additions,
@@ -13,6 +24,13 @@
 
 - **Complete-result cache** — unchanged compiler and opt-in CLI runs reuse the
   prior clone groups without global detection or a large fragment-cache rewrite.
+- **Credo result cache** — the Credo check accepts `cache: true` (and
+  `cache_path`) to reuse the prior clone result while no analyzed source
+  changed, instead of re-fingerprinting every file on each `mix credo` run.
+  Filesystem and Credo runs over the same sources validate the same entry.
+- **Single fingerprint pass** — Type-I and Type-II fragments for a file are
+  produced by one task from one prepared AST, halving task overhead and
+  running suppression stripping and clause grouping once per file.
 
 ## 1.5.4
 

@@ -10,7 +10,7 @@ defmodule ExDNA.Detection.Detector do
   """
 
   alias ExDNA.Config
-  alias ExDNA.Detection.{Clone, Filter, Fuzzy, Pipeline}
+  alias ExDNA.Detection.{AnalysisError, Clone, Filter, Fuzzy, Pipeline}
   alias ExDNA.Refactor.BehaviourSuggestion
 
   @doc """
@@ -22,12 +22,11 @@ defmodule ExDNA.Detection.Detector do
 
     pairs =
       files
-      |> Task.async_stream(
-        fn file -> parse_file(file, config) end,
-        max_concurrency: System.schedulers_online(),
-        ordered: false
-      )
-      |> Enum.flat_map(fn {:ok, result} -> result end)
+      |> isolated_stream(fn file -> parse_file(file, config) end)
+      |> Enum.flat_map(fn
+        {:ok, result} -> result
+        {:error, file, reason} -> handle_failure(file, reason, config)
+      end)
 
     {run_detection(config, pairs), length(pairs)}
   end
@@ -41,11 +40,17 @@ defmodule ExDNA.Detection.Detector do
   @spec run(Config.t(), [{String.t(), Macro.t()} | {String.t(), Macro.t(), String.t()}]) ::
           {[Clone.t()], non_neg_integer()}
   def run(%Config{} = config, file_ast_pairs) when is_list(file_ast_pairs) do
-    {run_detection(config, file_ast_pairs),
-     Enum.count(file_ast_pairs, fn
-       {_, ast} -> ast != nil
-       {_, ast, _} -> ast != nil
-     end)}
+    {run_detection(config, file_ast_pairs), count_parsed(file_ast_pairs)}
+  end
+
+  @doc false
+  @spec count_parsed([{String.t(), Macro.t()} | {String.t(), Macro.t(), String.t()}]) ::
+          non_neg_integer()
+  def count_parsed(file_ast_pairs) do
+    Enum.count(file_ast_pairs, fn
+      {_, ast} -> ast != nil
+      {_, ast, _} -> ast != nil
+    end)
   end
 
   @doc false
@@ -58,17 +63,7 @@ defmodule ExDNA.Detection.Detector do
   end
 
   defp run_detection(config, file_ast_pairs) do
-    type_i_config = fingerprint_config(config, literal_mode: :keep, normalize_variables: false)
-    type_i_fragments = fingerprint_pairs(file_ast_pairs, type_i_config)
-
-    type_ii_config =
-      fingerprint_config(config,
-        literal_mode: config.literal_mode,
-        normalize_variables: true
-      )
-
-    type_ii_fragments = fingerprint_pairs(file_ast_pairs, type_ii_config)
-
+    {type_i_fragments, type_ii_fragments} = fingerprint_pairs(file_ast_pairs, config)
     detect_from_fragments(config, type_i_fragments, type_ii_fragments, file_ast_pairs)
   end
 
@@ -102,17 +97,91 @@ defmodule ExDNA.Detection.Detector do
     end
   end
 
+  # Every file is fingerprinted once for Type-I (names and literals kept) and
+  # once for Type-II (variables normalized). Both passes share one task and one
+  # prepared AST so suppression stripping and clause grouping run a single time.
   defp fingerprint_pairs(pairs, config) do
+    type_i_config = fingerprint_config(config, literal_mode: :keep, normalize_variables: false)
+
+    type_ii_config =
+      fingerprint_config(config,
+        literal_mode: config.literal_mode,
+        normalize_variables: true
+      )
+
     pairs
-    |> Task.async_stream(
-      fn
-        {file, ast} -> Pipeline.fingerprint_ast(ast, file, config)
-        {file, ast, source} -> Pipeline.fingerprint_ast(ast, file, config, source)
-      end,
+    |> isolated_stream(&fingerprint_pair(&1, type_i_config, type_ii_config))
+    |> Enum.reduce({[], []}, fn
+      {:ok, {type_i, type_ii}}, {acc_i, acc_ii} ->
+        {type_i ++ acc_i, type_ii ++ acc_ii}
+
+      {:error, pair, reason}, acc ->
+        handle_failure(pair_file(pair), reason, config)
+        acc
+    end)
+  end
+
+  defp fingerprint_pair({file, ast}, type_i_config, type_ii_config) do
+    source = if File.regular?(file), do: File.read!(file), else: ""
+    fingerprint_pair({file, ast, source}, type_i_config, type_ii_config)
+  end
+
+  defp fingerprint_pair({file, ast, source}, type_i_config, type_ii_config) do
+    case Pipeline.prepare_ast(ast, source) do
+      :suppressed ->
+        {[], []}
+
+      {:ok, prepared} ->
+        {Pipeline.fingerprint_prepared(prepared, file, type_i_config),
+         Pipeline.fingerprint_prepared(prepared, file, type_ii_config)}
+    end
+  end
+
+  defp pair_file({file, _ast}), do: file
+  defp pair_file({file, _ast, _source}), do: file
+
+  # Per-file work runs in parallel tasks. Raises, throws and exits inside a
+  # task are caught at the file boundary and returned as `{:error, input,
+  # reason}` values, so one bad file is reported and handled by `on_error`
+  # instead of taking down the run (a plain crash would propagate through the
+  # task link and, under Credo, escape its `rescue`-only error handling). The
+  # catch also keeps the BEAM from logging a crash report that would dump the
+  # file's whole AST.
+  #
+  # The work is bounded CPU, so no wall-clock timeout applies: a per-task budget
+  # only ever produced spurious failures on saturated machines (e.g. under
+  # Credo's own parallel checks).
+  defp isolated_stream(enumerable, fun) do
+    enumerable
+    |> Task.async_stream(&guarded(fun, &1),
       max_concurrency: System.schedulers_online(),
-      ordered: false
+      ordered: false,
+      timeout: :infinity
     )
-    |> Enum.flat_map(fn {:ok, frags} -> frags end)
+    |> Stream.map(fn {:ok, result} -> result end)
+  end
+
+  defp guarded(fun, input) do
+    {:ok, fun.(input)}
+  catch
+    kind, payload -> {:error, input, exit_reason(kind, payload, __STACKTRACE__)}
+  end
+
+  # Shape caught failures like the exit reason the process would have died
+  # with, so `Exception.format_exit/1` renders every failure the same way.
+  defp exit_reason(:error, payload, stacktrace),
+    do: {Exception.normalize(:error, payload, stacktrace), stacktrace}
+
+  defp exit_reason(:throw, payload, stacktrace), do: {{:nocatch, payload}, stacktrace}
+  defp exit_reason(:exit, payload, _stacktrace), do: payload
+
+  defp handle_failure(file, reason, %Config{on_error: :raise}) do
+    raise AnalysisError, file: file, reason: reason
+  end
+
+  defp handle_failure(file, reason, %Config{on_error: :warn}) do
+    IO.puts(:stderr, "warning: ExDNA skipped #{file}: " <> Exception.format_exit(reason))
+    []
   end
 
   defp ast_map(file_ast_pairs) do

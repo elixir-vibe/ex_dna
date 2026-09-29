@@ -46,26 +46,47 @@ defmodule ExDNA.Detection.Pipeline do
 
   @spec fingerprint_ast(Macro.t(), String.t(), Config.t(), String.t()) :: [Fingerprint.fragment()]
   def fingerprint_ast(ast, file, config, source) do
-    ignored_lines = Annotator.suppressed_lines(source)
-
-    if ignored_lines == :all do
-      []
-    else
-      ast =
-        ast
-        |> Annotator.strip_suppressed(ignored_lines)
-        |> ClauseGrouper.group()
-
-      Fingerprint.fragments(ast, file, config.min_mass,
-        literal_mode: config.literal_mode,
-        normalize_pipes: config.normalize_pipes,
-        excluded_macros: config.excluded_macros,
-        ignored_attributes: config.ignored_attributes,
-        max_window_size: config.max_window_size,
-        max_module_forms: config.max_module_forms,
-        normalize_variables: Map.get(config, :normalize_variables, true)
-      )
+    case prepare_ast(ast, source) do
+      :suppressed -> []
+      {:ok, prepared} -> fingerprint_prepared(prepared, file, config)
     end
+  end
+
+  @doc """
+  Apply source-level suppression and clause grouping once, so the result can
+  be fingerprinted under several configurations without repeating that work.
+  """
+  @spec prepare_ast(Macro.t(), String.t()) :: {:ok, Macro.t()} | :suppressed
+  def prepare_ast(ast, source) do
+    case Annotator.suppressed_lines(source) do
+      :all ->
+        :suppressed
+
+      ignored_lines ->
+        prepared =
+          ast
+          |> Annotator.strip_suppressed(ignored_lines)
+          |> ClauseGrouper.group()
+
+        {:ok, prepared}
+    end
+  end
+
+  @doc """
+  Fingerprint an AST returned by `prepare_ast/2`.
+  """
+  @spec fingerprint_prepared(Macro.t(), String.t(), Config.t() | map()) ::
+          [Fingerprint.fragment()]
+  def fingerprint_prepared(ast, file, config) do
+    Fingerprint.fragments(ast, file, config.min_mass,
+      literal_mode: config.literal_mode,
+      normalize_pipes: config.normalize_pipes,
+      excluded_macros: config.excluded_macros,
+      ignored_attributes: config.ignored_attributes,
+      max_window_size: config.max_window_size,
+      max_module_forms: config.max_module_forms,
+      normalize_variables: Map.get(config, :normalize_variables, true)
+    )
   end
 
   @spec find_clones([Fingerprint.fragment()], Clone.clone_type()) :: [Clone.t()]

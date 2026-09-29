@@ -84,4 +84,20 @@ defmodule ExDNA.ConfigTest do
       end
     end
   end
+
+  describe "on_error" do
+    test "defaults to :warn" do
+      assert Config.new([]).on_error == :warn
+    end
+
+    test "accepts :raise" do
+      assert Config.new(on_error: :raise).on_error == :raise
+    end
+
+    test "rejects other values" do
+      assert_raise ArgumentError, ~r/on_error must be :warn or :raise/, fn ->
+        Config.new(on_error: :ignore)
+      end
+    end
+  end
 end
